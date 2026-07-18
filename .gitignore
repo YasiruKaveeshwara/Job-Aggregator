@@ -91,3 +91,5 @@ yarn-error.log*
 # ── Misc ──────────────────────────────────────────────────────────────
 .agents/
 job-aggregator-agent-build-instructions.md
+frontend/AGENTS.md
+frontend/CLAUDE.md
