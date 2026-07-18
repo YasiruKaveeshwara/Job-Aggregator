@@ -20,6 +20,7 @@ const PLATFORM_COLORS: Record<string, string> = {
   "anyjobok.com": "badge-green",
   "governmentjob.lk": "badge-amber",
   "jobenvoy.com": "badge-purple",
+  "rooster.jobs": "badge-cyan",
 };
 
 function formatDate(iso: string | null): string {

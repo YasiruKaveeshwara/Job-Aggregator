@@ -27,6 +27,7 @@ _DEFAULT_SOURCES = [
     "anyjobok.com",
     "governmentjob.lk",
     "jobenvoy.com",
+    "rooster.jobs",
 ]
 
 
