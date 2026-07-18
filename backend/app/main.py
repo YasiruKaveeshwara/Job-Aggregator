@@ -32,25 +32,31 @@ _DEFAULT_SOURCES = [
 
 
 def _seed_sources() -> None:
-    """Insert default Source rows if the table is empty."""
+    """Insert default Source rows if they don't already exist."""
     with Session(engine) as session:
-        existing = session.exec(select(Source)).all()
-        if existing:
-            return  # already seeded
+        existing = {s.name for s in session.exec(select(Source)).all()}
 
+        added = 0
         for name in _DEFAULT_SOURCES:
-            session.add(Source(name=name, enabled=True))
-        session.commit()
-        logger.info("Seeded %d default sources", len(_DEFAULT_SOURCES))
+            if name not in existing:
+                session.add(Source(name=name, enabled=True))
+                added += 1
+
+        if added:
+            session.commit()
+            logger.info("Seeded %d new source(s)", added)
 
 
 # ── Lifespan (startup / shutdown) ────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Runs on startup: create tables, seed sources."""
+    """Runs on startup: create tables, seed sources, load keyword config."""
     create_db_and_tables()
     _seed_sources()
+    # Load persisted keyword config (if any)
+    from app.routers.keywords import load_keywords_from_disk
+    load_keywords_from_disk()
     logger.info("Database ready — tables created and sources seeded")
     yield
     # Nothing to clean up on shutdown (SQLite file stays)
@@ -81,11 +87,12 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────
 
-from app.routers import jobs, scrape, sources
+from app.routers import jobs, keywords, scrape, sources
 
 app.include_router(jobs.router)
 app.include_router(scrape.router)
 app.include_router(sources.router)
+app.include_router(keywords.router)
 
 
 # ── Health check ─────────────────────────────────────────────────────

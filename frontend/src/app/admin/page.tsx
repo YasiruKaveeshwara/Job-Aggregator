@@ -5,6 +5,7 @@ import type { Source } from "@/types/job";
 import ScrapeControlPanel from "@/components/ScrapeControlPanel";
 import SourceToggleList from "@/components/SourceToggleList";
 import RunHistoryTable from "@/components/RunHistoryTable";
+import KeywordEditor from "@/components/KeywordEditor";
 
 export default function AdminPage() {
   const [sources, setSources] = useState<Source[]>([]);
@@ -18,7 +19,7 @@ export default function AdminPage() {
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Admin Portal</h1>
         <p style={{ color: "var(--text-secondary)", fontSize: 13, marginTop: 4 }}>
-          Manually trigger scrape runs and manage sources.
+          Manually trigger scrape runs, manage sources, and configure keywords.
         </p>
       </div>
 
@@ -35,6 +36,12 @@ export default function AdminPage() {
           sources={sources}
           onSourcesChange={setSources}
         />
+      </section>
+
+      {/* Keyword config */}
+      <section style={{ marginBottom: 28 }}>
+        <SectionLabel icon="🔑" title="Role Keywords" />
+        <KeywordEditor />
       </section>
 
       {/* Run history */}

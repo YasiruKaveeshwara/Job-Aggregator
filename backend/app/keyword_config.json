@@ -1,0 +1,20 @@
+{
+  "include": [
+    "software engineer",
+    "associate software engineer",
+    "web developer",
+    "frontend",
+    "front-end",
+    "backend",
+    "back-end",
+    "full stack",
+    "fullstack",
+    "swe"
+  ],
+  "intern_modifiers": [
+    "intern",
+    "internship",
+    "trainee"
+  ],
+  "exclude": []
+}

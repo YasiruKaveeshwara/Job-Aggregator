@@ -47,6 +47,13 @@ export interface Source {
   id: number;
   name: string;
   enabled: boolean;
+  last_scraped_at: string | null; // ISO 8601
+}
+
+export interface KeywordConfig {
+  include: string[];
+  intern_modifiers: string[];
+  exclude: string[];
 }
 
 export interface SiteResult {

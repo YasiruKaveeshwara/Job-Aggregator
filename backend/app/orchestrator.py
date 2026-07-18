@@ -167,6 +167,9 @@ def _process_site(run_id: int, site_name: str) -> None:
         "error": None,
     })
 
+    # Update last_scraped_at on the Source row
+    _update_source_timestamp(site_name)
+
 
 # ── ScrapeRun helpers ────────────────────────────────────────────────
 
@@ -212,3 +215,14 @@ def _mark_run_failed(run_id: int) -> None:
             session.add(run)
             session.commit()
             logger.error("[orchestrator] Run %d FAILED", run_id)
+
+
+def _update_source_timestamp(site_name: str) -> None:
+    """Set Source.last_scraped_at to now after a successful scrape."""
+    with Session(engine) as session:
+        statement = select(Source).where(Source.name == site_name)
+        source = session.exec(statement).first()
+        if source:
+            source.last_scraped_at = datetime.now(timezone.utc)
+            session.add(source)
+            session.commit()

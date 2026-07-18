@@ -134,6 +134,22 @@ export default function DashboardPage() {
         <p style={{ color: "var(--text-secondary)", marginTop: 4, fontSize: 13 }}>
           {jobs.length} job{jobs.length !== 1 ? "s" : ""} tracked
           {filteredJobs.length !== jobs.length && ` · ${filteredJobs.length} shown`}
+          {(() => {
+            const latest = sources
+              .filter((s) => s.last_scraped_at)
+              .sort((a, b) =>
+                new Date(b.last_scraped_at!).getTime() -
+                new Date(a.last_scraped_at!).getTime()
+              )[0];
+            if (!latest?.last_scraped_at) return null;
+            const diff = Date.now() - new Date(latest.last_scraped_at).getTime();
+            const mins = Math.floor(diff / 60_000);
+            let ago = "just now";
+            if (mins >= 1 && mins < 60) ago = `${mins}m ago`;
+            else if (mins >= 60 && mins < 1440) ago = `${Math.floor(mins / 60)}h ago`;
+            else if (mins >= 1440) ago = `${Math.floor(mins / 1440)}d ago`;
+            return ` · last fetched ${ago}`;
+          })()}
         </p>
       </div>
 
@@ -151,8 +167,74 @@ export default function DashboardPage() {
         onQChange={setFilterQ}
       />
 
-      {/* Kanban */}
-      <KanbanBoard jobs={filteredJobs} onStateChange={handleStateChange} />
+      {/* Empty state */}
+      {jobs.length === 0 ? (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "80px 20px",
+            color: "var(--text-secondary)",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>📭</div>
+          <h2
+            style={{
+              fontSize: 18,
+              fontWeight: 600,
+              color: "var(--text-primary)",
+              margin: "0 0 8px",
+            }}
+          >
+            No jobs yet
+          </h2>
+          <p style={{ fontSize: 13, maxWidth: 360, margin: "0 0 20px" }}>
+            Head to the{" "}
+            <a
+              href="/admin"
+              style={{ color: "var(--accent)", textDecoration: "underline" }}
+            >
+              Admin Portal
+            </a>{" "}
+            and click <strong>Start Fetching</strong> to pull jobs from your
+            configured sources.
+          </p>
+        </div>
+      ) : filteredJobs.length === 0 ? (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "80px 20px",
+            color: "var(--text-secondary)",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>🔍</div>
+          <h2
+            style={{
+              fontSize: 18,
+              fontWeight: 600,
+              color: "var(--text-primary)",
+              margin: "0 0 8px",
+            }}
+          >
+            No matching jobs
+          </h2>
+          <p style={{ fontSize: 13, maxWidth: 360, margin: 0 }}>
+            Try adjusting your filters above, or clear them to see all{" "}
+            {jobs.length} tracked jobs.
+          </p>
+        </div>
+      ) : (
+        /* Kanban */
+        <KanbanBoard jobs={filteredJobs} onStateChange={handleStateChange} />
+      )}
     </div>
   );
 }

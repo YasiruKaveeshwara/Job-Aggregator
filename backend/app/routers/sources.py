@@ -5,6 +5,8 @@ GET   /api/sources         -- list all sites with their enabled flag
 PATCH /api/sources/{name}  -- enable or disable a site
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -22,6 +24,7 @@ class SourceOut(BaseModel):
     id: int
     name: str
     enabled: bool
+    last_scraped_at: Optional[str]  # ISO 8601 or null
 
 
 class SourceUpdate(BaseModel):
@@ -37,10 +40,7 @@ def list_sources(
 ):
     """List all configured job sites with their enabled/disabled status."""
     sources = session.exec(select(Source)).all()
-    return [
-        SourceOut(id=s.id, name=s.name, enabled=s.enabled)
-        for s in sources
-    ]
+    return [_source_to_out(s) for s in sources]
 
 
 @router.patch("/{name}", response_model=SourceOut)
@@ -60,4 +60,16 @@ def toggle_source(
     session.commit()
     session.refresh(source)
 
-    return SourceOut(id=source.id, name=source.name, enabled=source.enabled)
+    return _source_to_out(source)
+
+
+# ── Helpers ──────────────────────────────────────────────────────────
+
+def _source_to_out(s: Source) -> SourceOut:
+    """Convert a Source DB row to the API response model."""
+    return SourceOut(
+        id=s.id,
+        name=s.name,
+        enabled=s.enabled,
+        last_scraped_at=s.last_scraped_at.isoformat() if s.last_scraped_at else None,
+    )

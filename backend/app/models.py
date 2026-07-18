@@ -96,3 +96,4 @@ class Source(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(unique=True)   # e.g. "itpro.lk"
     enabled: bool = True
+    last_scraped_at: Optional[datetime] = None

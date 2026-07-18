@@ -7,6 +7,18 @@ interface Props {
   onSourcesChange: (sources: Source[]) => void;
 }
 
+function formatRelativeTime(iso: string | null): string {
+  if (!iso) return "Never scraped";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export default function SourceToggleList({ sources, onSourcesChange }: Props) {
   const handleToggle = async (source: Source) => {
     const updated = await toggleSource(source.name, !source.enabled);
@@ -45,10 +57,26 @@ export default function SourceToggleList({ sources, onSourcesChange }: Props) {
             }}
           />
 
-          {/* Name */}
-          <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>
-            {src.name}
-          </span>
+          {/* Name + last scraped */}
+          <div style={{ flex: 1 }}>
+            <span style={{ fontWeight: 600, fontSize: 13 }}>
+              {src.name}
+            </span>
+            <div
+              style={{
+                fontSize: 11,
+                color: src.last_scraped_at ? "var(--text-muted)" : "var(--text-muted)",
+                marginTop: 1,
+                opacity: 0.8,
+              }}
+            >
+              {src.last_scraped_at ? (
+                <>Last scraped {formatRelativeTime(src.last_scraped_at)}</>
+              ) : (
+                <span style={{ fontStyle: "italic" }}>Never scraped</span>
+              )}
+            </div>
+          </div>
 
           {/* Status text */}
           <span
