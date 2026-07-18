@@ -56,7 +56,13 @@ _robots_cache: dict[str, RobotFileParser] = {}
 
 
 def _get_robots_parser(url: str) -> RobotFileParser:
-    """Return a (cached) RobotFileParser for the origin of *url*."""
+    """Return a (cached) RobotFileParser for the origin of *url*.
+
+    Uses httpx (with our configured User-Agent) to fetch robots.txt
+    so the request matches what the scraper itself sends.  Falls back
+    to allow-all on any network error, 4xx/5xx response, or parse
+    failure — the standard behaviour when robots.txt is unavailable.
+    """
     parsed = urlparse(url)
     origin = f"{parsed.scheme}://{parsed.netloc}"
 
@@ -64,15 +70,39 @@ def _get_robots_parser(url: str) -> RobotFileParser:
         robots_url = f"{origin}/robots.txt"
         rp = RobotFileParser()
         rp.set_url(robots_url)
+
         try:
-            rp.read()
+            resp = httpx.get(
+                robots_url,
+                headers={"User-Agent": USER_AGENT},
+                follow_redirects=True,
+                timeout=10.0,
+            )
+            if resp.status_code == 200:
+                # Parse the fetched content — handles encoding better
+                # than urllib's built-in rp.read() which can choke on
+                # malformed files or Cloudflare challenge pages.
+                lines = resp.text.splitlines()
+                rp.parse(lines)
+            else:
+                # Non-200 (404, 403, 5xx) → assume all allowed
+                logger.info(
+                    "robots.txt from %s returned HTTP %d — assuming allowed",
+                    robots_url,
+                    resp.status_code,
+                )
+                rp.allow_all = True
         except Exception:
-            logger.warning("Could not fetch robots.txt from %s — assuming allowed", robots_url)
-            # If we can't read robots.txt, default to allowing (common practice).
+            logger.warning(
+                "Could not fetch robots.txt from %s — assuming allowed",
+                robots_url,
+            )
             rp.allow_all = True
+
         _robots_cache[origin] = rp
 
     return _robots_cache[origin]
+
 
 
 # ── Base scraper ──────────────────────────────────────────────────────
