@@ -78,12 +78,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Routers (stubs — implemented in Phase 5) ─────────────────────────
-# Uncomment as each router is built:
-# from app.routers import jobs, scrape, sources
-# app.include_router(jobs.router)
-# app.include_router(scrape.router)
-# app.include_router(sources.router)
+# ── Routers ───────────────────────────────────────────────────────────
+
+from app.routers import jobs, scrape, sources
+
+app.include_router(jobs.router)
+app.include_router(scrape.router)
+app.include_router(sources.router)
 
 
 # ── Health check ─────────────────────────────────────────────────────
