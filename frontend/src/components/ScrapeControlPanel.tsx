@@ -17,6 +17,7 @@ const PLATFORM_COLORS: Record<string, string> = {
 	"governmentjob.lk": "#f59e0b",
 	"jobenvoy.com": "#a855f7",
 	"rooster.jobs": "#06b6d4",
+	"topjobs.lk": "#ef4444",
 };
 
 export default function ScrapeControlPanel({ sources, onRunFinished }: Props) {

@@ -28,6 +28,7 @@ _DEFAULT_SOURCES = [
     "governmentjob.lk",
     "jobenvoy.com",
     "rooster.jobs",
+    "topjobs.lk",
 ]
 
 

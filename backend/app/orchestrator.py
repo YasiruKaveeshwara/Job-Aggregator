@@ -34,6 +34,7 @@ from app.scrapers.anyjobok import AnyjobokScraper
 from app.scrapers.governmentjob import GovernmentjobScraper
 from app.scrapers.jobenvoy import JobenvoyScraper
 from app.scrapers.rooster import RoosterScraper
+from app.scrapers.topjobs import TopjobsScraper
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     "governmentjob.lk": GovernmentjobScraper,
     "jobenvoy.com": JobenvoyScraper,
     "rooster.jobs": RoosterScraper,
+    "topjobs.lk": TopjobsScraper,
 }
 
 

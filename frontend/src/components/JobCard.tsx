@@ -8,17 +8,22 @@ interface JobCardProps {
 	onStateChange: (job: Job, newState: ApplicationState) => void;
 }
 
+function RelativeTimeLabel({ iso }: { iso: string | null }) {
+	const value = useLiveRelativeTime(iso);
+	return <span style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{value}</span>;
+}
+
 const PLATFORM_COLORS: Record<string, string> = {
 	"itpro.lk": "badge-indigo",
 	"anyjobok.com": "badge-green",
 	"governmentjob.lk": "badge-amber",
 	"jobenvoy.com": "badge-purple",
 	"rooster.jobs": "badge-cyan",
+	"topjobs.lk": "badge-red",
 };
 
 export default function JobCard({ job, onStateChange }: JobCardProps) {
 	const [expanded, setExpanded] = useState(false);
-	const postedAgo = useLiveRelativeTime(job.posted_date);
 
 	const handleApplyToggle = () => {
 		onStateChange(job, job.application_state === "APPLIED" ? "NEW" : "APPLIED");
@@ -85,10 +90,8 @@ export default function JobCard({ job, onStateChange }: JobCardProps) {
 						{job.job_title}
 					</h3>
 					{job.posted_date && (
-						<span
-							style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}
-							title={`Posted ${new Date(job.posted_date).toLocaleString()}`}>
-							{postedAgo}
+						<span title={`Posted ${new Date(job.posted_date).toLocaleString()}`}>
+							<RelativeTimeLabel iso={job.posted_date} />
 						</span>
 					)}
 				</div>

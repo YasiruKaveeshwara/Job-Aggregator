@@ -23,8 +23,15 @@ from app.scrapers.base import BaseScraper, RawJobPosting
 
 logger = logging.getLogger(__name__)
 
-# Browser-visible search results
-_SEARCH_QUERY = "software"
+# Keywords to search one by one — mirrors config.py ROLE_KEYWORDS_INCLUDE
+_SEARCH_QUERIES = [
+    "software engineer",
+    "web developer",
+    "frontend developer",
+    "backend developer",
+    "full stack developer",
+    "software intern",
+]
 _SEARCH_URL = "https://governmentjob.lk/?s={query}&post_type=job_listing"
 _SEARCH_PAGE_URL = (
     "https://governmentjob.lk/page/{page}/?s={query}&post_type=job_listing"
@@ -68,14 +75,13 @@ class GovernmentjobScraper(BaseScraper):
     # ── Browser search results approach ─────────────────────────────
 
     def _fetch_via_browser_search(self) -> list[RawJobPosting]:
-        """Fetch public search results pages using a browser context."""
+        """Fetch public search results pages for every configured keyword."""
         try:
             from playwright.sync_api import sync_playwright
         except Exception:
             logger.info("[%s] Playwright not available", self.platform_name)
             return []
 
-        query = quote_plus(_SEARCH_QUERY)
         results: list[RawJobPosting] = []
         seen_urls: set[str] = set()
 
@@ -93,49 +99,44 @@ class GovernmentjobScraper(BaseScraper):
                         viewport={"width": 1440, "height": 1200},
                     )
 
-                    for page_num in range(1, _MAX_SEARCH_PAGES + 1):
-                        url = (
-                            _SEARCH_URL.format(query=query)
-                            if page_num == 1
-                            else _SEARCH_PAGE_URL.format(page=page_num, query=query)
-                        )
-
-                        try:
-                            page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                            page.wait_for_selector("main article", timeout=10000)
-                        except Exception:
-                            logger.warning(
-                                "[%s] Browser load failed for %s page %d",
-                                self.platform_name,
-                                url,
-                                page_num,
-                                exc_info=True,
+                    for query in _SEARCH_QUERIES:
+                        query_encoded = quote_plus(query)
+                        for page_num in range(1, _MAX_SEARCH_PAGES + 1):
+                            url = (
+                                _SEARCH_URL.format(query=query_encoded)
+                                if page_num == 1
+                                else _SEARCH_PAGE_URL.format(page=page_num, query=query_encoded)
                             )
-                            break
 
-                        page_results = self._parse_search_results_page(page.content())
-                        if not page_results:
+                            try:
+                                page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                                page.wait_for_selector("main article", timeout=10000)
+                            except Exception:
+                                logger.warning(
+                                    "[%s] Browser load failed for query='%s' page %d",
+                                    self.platform_name, query, page_num, exc_info=True,
+                                )
+                                break
+
+                            page_results = self._parse_search_results_page(page.content())
+                            if not page_results:
+                                logger.info(
+                                    "[%s] No results for query='%s' page %d — stopping",
+                                    self.platform_name, query, page_num,
+                                )
+                                break
+
+                            new_jobs = 0
+                            for job in page_results:
+                                if job.source_url not in seen_urls:
+                                    seen_urls.add(job.source_url)
+                                    results.append(job)
+                                    new_jobs += 1
+
                             logger.info(
-                                "[%s] No browser search results on page %d — stopping",
-                                self.platform_name,
-                                page_num,
+                                "[%s] Query '%s' page %d → %d new (total: %d)",
+                                self.platform_name, query, page_num, new_jobs, len(results),
                             )
-                            break
-
-                        new_jobs = 0
-                        for job in page_results:
-                            if job.source_url not in seen_urls:
-                                seen_urls.add(job.source_url)
-                                results.append(job)
-                                new_jobs += 1
-
-                        logger.info(
-                            "[%s] Browser search page %d yielded %d new postings (total: %d)",
-                            self.platform_name,
-                            page_num,
-                            new_jobs,
-                            len(results),
-                        )
                 finally:
                     browser.close()
         except Exception:

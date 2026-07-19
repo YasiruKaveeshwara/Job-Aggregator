@@ -35,8 +35,18 @@ from app.scrapers.base import BaseScraper, RawJobPosting
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://jobenvoy.com"
-_SEARCH_URL = f"{_BASE_URL}/jobs?q=software&country=LK"
+_SEARCH_URL_TEMPLATE = f"{_BASE_URL}/jobs?q={{query}}&country=LK"
 _MAX_PAGES = 3
+
+# Keywords to search one by one
+_QUERIES = [
+    "software+engineer",
+    "web+developer",
+    "frontend+developer",
+    "backend+developer",
+    "full+stack+developer",
+    "software+intern",
+]
 
 
 class JobenvoyScraper(BaseScraper):
@@ -45,61 +55,56 @@ class JobenvoyScraper(BaseScraper):
     platform_name = "jobenvoy.com"
 
     def fetch(self) -> list[RawJobPosting]:
-        """Fetch software job postings from jobenvoy.com."""
+        """Fetch job postings from jobenvoy.com for all configured keywords."""
         results: list[RawJobPosting] = []
         seen_urls: set[str] = set()
 
         with self._get_client() as client:
-            next_url: Optional[str] = _SEARCH_URL
+            for query in _QUERIES:
+                start_url = _SEARCH_URL_TEMPLATE.format(query=query)
+                next_url: Optional[str] = start_url
 
-            for page_num in range(1, _MAX_PAGES + 1):
-                if not next_url:
-                    break
+                for page_num in range(1, _MAX_PAGES + 1):
+                    if not next_url:
+                        break
 
-                if not self.robots_allowed(next_url):
-                    logger.warning("robots.txt disallows %s — skipping", next_url)
-                    break
+                    if not self.robots_allowed(next_url):
+                        logger.warning("robots.txt disallows %s — skipping", next_url)
+                        break
 
-                try:
-                    response = self._request_with_retry(client, "GET", next_url)
-                except Exception:
-                    logger.warning(
-                        "[%s] Failed to fetch %s — skipping",
-                        self.platform_name,
-                        next_url,
-                        exc_info=True,
+                    try:
+                        response = self._request_with_retry(client, "GET", next_url)
+                    except Exception:
+                        logger.warning(
+                            "[%s] Failed to fetch %s — skipping",
+                            self.platform_name, next_url, exc_info=True,
+                        )
+                        break
+
+                    page_results, discovered_next_url = self._parse_listing_page(
+                        response.text, next_url
                     )
-                    break
 
-                page_results, discovered_next_url = self._parse_listing_page(
-                    response.text, next_url
-                )
+                    new_jobs = 0
+                    for posting in page_results:
+                        if posting.source_url not in seen_urls:
+                            seen_urls.add(posting.source_url)
+                            results.append(posting)
+                            new_jobs += 1
 
-                new_jobs = 0
-                for posting in page_results:
-                    if posting.source_url not in seen_urls:
-                        seen_urls.add(posting.source_url)
-                        results.append(posting)
-                        new_jobs += 1
+                    logger.info(
+                        "[%s] query='%s' page %d → %d new (total: %d)",
+                        self.platform_name, query, page_num, new_jobs, len(results),
+                    )
 
-                logger.info(
-                    "[%s] page %d (%s) yielded %d new postings (total: %d)",
-                    self.platform_name,
-                    page_num,
-                    next_url,
-                    new_jobs,
-                    len(results),
-                )
+                    if not discovered_next_url or discovered_next_url == next_url:
+                        break
 
-                if not discovered_next_url or discovered_next_url == next_url:
-                    break
-
-                next_url = discovered_next_url
+                    next_url = discovered_next_url
 
         logger.info(
             "[%s] Finished — %d unique postings collected",
-            self.platform_name,
-            len(results),
+            self.platform_name, len(results),
         )
         return results
 

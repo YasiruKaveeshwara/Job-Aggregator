@@ -8,6 +8,11 @@ interface Props {
 	onSourcesChange: (sources: Source[]) => void;
 }
 
+function RelativeTimeLabel({ iso }: { iso: string | null }) {
+	const value = useLiveRelativeTime(iso);
+	return <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{value}</span>;
+}
+
 export default function SourceToggleList({ sources, onSourcesChange }: Props) {
 	const handleToggle = async (source: Source) => {
 		const updated = await toggleSource(source.name, !source.enabled);
@@ -52,10 +57,7 @@ export default function SourceToggleList({ sources, onSourcesChange }: Props) {
 							}}>
 							{src.last_scraped_at ?
 								<>
-									Last scraped{" "}
-									<span style={{ color: "var(--text-primary)", fontWeight: 600 }}>
-										{useLiveRelativeTime(src.last_scraped_at)}
-									</span>
+									Last scraped <RelativeTimeLabel iso={src.last_scraped_at} />
 								</>
 							:	<span style={{ fontStyle: "italic" }}>Never scraped</span>}
 						</div>

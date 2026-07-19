@@ -5,7 +5,8 @@ import { useLiveRelativeTime } from "@/lib/datetime";
 import type { ScrapeRun } from "@/types/job";
 
 function RelativeDateCell({ iso }: { iso: string }) {
-	return <>{useLiveRelativeTime(iso)}</>;
+	const value = useLiveRelativeTime(iso);
+	return <>{value}</>;
 }
 
 function formatDuration(start: string, end: string | null): string {
