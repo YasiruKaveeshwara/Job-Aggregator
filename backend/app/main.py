@@ -30,6 +30,7 @@ _DEFAULT_SOURCES = [
     "rooster.jobs",
     "topjobs.lk",
     "xpress.jobs",
+    "findmyjob.lk",
 ]
 
 

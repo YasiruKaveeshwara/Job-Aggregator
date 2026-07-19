@@ -19,6 +19,7 @@ const PLATFORM_COLORS: Record<string, string> = {
 	"rooster.jobs": "#06b6d4",
 	"topjobs.lk": "#ef4444",
 	"xpress.jobs": "#64748b",
+	"findmyjob.lk": "#10b981",
 };
 
 export default function ScrapeControlPanel({ sources, onRunFinished }: Props) {
