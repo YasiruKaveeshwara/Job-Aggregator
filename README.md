@@ -7,43 +7,58 @@ pipeline (Discovered → Reviewing → Applied → Interviewing → Archived).
 
 ## Stack
 
-| Layer     | Technology                       |
-| --------- | -------------------------------- |
-| Frontend  | Next.js (App Router) + Tailwind  |
-| Backend   | Python + FastAPI                 |
-| Database  | SQLite via SQLModel              |
-| Scrapers  | httpx + BeautifulSoup4           |
+| Layer    | Technology                      |
+| -------- | ------------------------------- |
+| Frontend | Next.js (App Router) + Tailwind |
+| Backend  | Python + FastAPI                |
+| Database | SQLite via SQLModel             |
+| Scrapers | httpx + BeautifulSoup4          |
 
 ## Quick Start
 
-```bash
+```powershell
 # 1. Backend
 cd backend
 python -m venv venv
-.\venv\Scripts\activate        # Windows
+.\venv\Scripts\Activate.ps1    # PowerShell on Windows
 pip install -r requirements.txt
-cp .env.example .env           # edit if needed
-uvicorn app.main:app --host 127.0.0.1 --port 8000
+copy ..\\.env.example .env     # edit if needed
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 # 2. Frontend (new terminal)
 cd frontend
 npm install
-cp .env.local.example .env.local  # edit if needed
+copy .env.local.example .env.local  # edit if needed
 npm run dev
 ```
 
 Open **http://localhost:3000** for the dashboard,
 **http://localhost:3000/admin** for the admin portal.
 
+## Backend Server
+
+If you only want the API server, start it from the `backend` directory:
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+copy ..\.env.example .env
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+The API will be available at `http://127.0.0.1:8000`, and the health check is
+at `http://127.0.0.1:8000/health`.
+
 ## Sources
 
 | Site             | Method          | Status |
 | ---------------- | --------------- | ------ |
-| itpro.lk         | REST API        | ✅      |
-| anyjobok.com     | HTML scrape     | ✅      |
-| governmentjob.lk | WP API / HTML   | ✅      |
-| jobenvoy.com     | HTML scrape     | ✅      |
-| rooster.jobs     | JSON search API | ✅      |
+| itpro.lk         | REST API        | ✅     |
+| anyjobok.com     | HTML scrape     | ✅     |
+| governmentjob.lk | WP API / HTML   | ✅     |
+| jobenvoy.com     | HTML scrape     | ✅     |
+| rooster.jobs     | JSON search API | ✅     |
 
 ## Usage
 
