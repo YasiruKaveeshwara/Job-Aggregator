@@ -3,18 +3,12 @@
 // and backend/app/routers/scrape.py (ScrapeRunOut).
 
 export type ApplicationState =
-  | "DISCOVERED"
-  | "REVIEWING"
-  | "APPLIED"
-  | "INTERVIEWING"
-  | "ARCHIVED";
+  | "NEW"
+  | "APPLIED";
 
 export const APPLICATION_STATES: ApplicationState[] = [
-  "DISCOVERED",
-  "REVIEWING",
+  "NEW",
   "APPLIED",
-  "INTERVIEWING",
-  "ARCHIVED",
 ];
 
 export interface JobSource {
@@ -36,6 +30,7 @@ export interface Job {
   salary_min: number | null;
   salary_max: number | null;
   description_clean: string | null;
+  image_url: string | null;
   posted_date: string | null; // ISO 8601
   application_state: ApplicationState;
   state_updated_date: string; // ISO 8601

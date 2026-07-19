@@ -2,23 +2,23 @@
 
 /* ── Design tokens ────────────────────────────────────────────────── */
 :root {
-  --bg-base: #0f1117;
-  --bg-surface: #1a1d27;
-  --bg-card: #20253a;
-  --bg-card-hover: #262c42;
-  --border: #2d3352;
-  --border-subtle: #1e2338;
-  --text-primary: #e8eaf0;
-  --text-secondary: #8b90a8;
-  --text-muted: #555b76;
-  --accent: #6366f1;        /* indigo */
-  --accent-light: #818cf8;
-  --accent-dim: #1e1f4b;
-  --green: #22c55e;
-  --amber: #f59e0b;
-  --red: #ef4444;
-  --purple: #a855f7;
-  --cyan: #06b6d4;
+  --bg-base: #f8fafc;
+  --bg-surface: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-card-hover: #fdfdfd;
+  --border: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --accent: #4f46e5;        /* indigo */
+  --accent-light: #6366f1;
+  --accent-dim: #e0e7ff;
+  --green: #16a34a;
+  --amber: #d97706;
+  --red: #dc2626;
+  --purple: #9333ea;
+  --cyan: #0891b2;
 }
 
 /* ── Base ─────────────────────────────────────────────────────────── */
@@ -101,12 +101,12 @@ body {
   letter-spacing: 0.02em;
 }
 
-.badge-indigo  { background: #312e81; color: var(--accent-light); }
-.badge-green   { background: #14532d; color: #86efac; }
-.badge-amber   { background: #451a03; color: #fcd34d; }
-.badge-red     { background: #450a0a; color: #fca5a5; }
-.badge-purple  { background: #3b0764; color: #d8b4fe; }
-.badge-cyan    { background: #083344; color: #67e8f9; }
+.badge-indigo  { background: #e0e7ff; color: #4338ca; }
+.badge-green   { background: #dcfce7; color: #15803d; }
+.badge-amber   { background: #fef3c7; color: #b45309; }
+.badge-red     { background: #fee2e2; color: #b91c1c; }
+.badge-purple  { background: #f3e8ff; color: #7e22ce; }
+.badge-cyan    { background: #cffafe; color: #0e7490; }
 .badge-neutral { background: var(--bg-surface); color: var(--text-secondary); border: 1px solid var(--border); }
 
 /* ── Input ────────────────────────────────────────────────────────── */

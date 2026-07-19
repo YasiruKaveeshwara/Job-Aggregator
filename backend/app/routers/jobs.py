@@ -42,6 +42,7 @@ class JobOut(BaseModel):
     salary_min: Optional[int]
     salary_max: Optional[int]
     description_clean: Optional[str]
+    image_url: Optional[str]
     posted_date: Optional[datetime]
     application_state: str
     state_updated_date: datetime
@@ -54,9 +55,7 @@ class JobStateUpdate(BaseModel):
     application_state: str
 
 
-_VALID_STATES = {
-    "DISCOVERED", "REVIEWING", "APPLIED", "INTERVIEWING", "ARCHIVED",
-}
+_VALID_STATES = {"NEW", "APPLIED"}
 
 
 # ── Endpoints ────────────────────────────────────────────────────────
@@ -67,6 +66,8 @@ def list_jobs(
     source: Optional[str] = Query(None, description="Filter by source platform"),
     role_match: Optional[str] = Query(None, description="Filter by role_match keyword"),
     q: Optional[str] = Query(None, description="Free-text search (title + company)"),
+    date_from: Optional[str] = Query(None, description="Filter: posted on or after (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Filter: posted on or before (YYYY-MM-DD)"),
     session: Session = Depends(get_session),
 ):
     """List all jobs, with optional filters."""
@@ -82,9 +83,25 @@ def list_jobs(
             col(Job.job_title).ilike(pattern)
             | col(Job.company_name).ilike(pattern)
         )
+    if date_from:
+        try:
+            dt_from = datetime.fromisoformat(date_from)
+            statement = statement.where(col(Job.posted_date) >= dt_from)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt_to = datetime.fromisoformat(date_to)
+            # include the full end day
+            statement = statement.where(col(Job.posted_date) <= dt_to)
+        except ValueError:
+            pass
 
-    # Order by most recent first
-    statement = statement.order_by(col(Job.created_at).desc())
+    # Order by most recent posted_date first, then created_at
+    statement = statement.order_by(
+        col(Job.posted_date).desc(),
+        col(Job.created_at).desc(),
+    )
     jobs = session.exec(statement).all()
 
     # If filtering by source, we need to check JobSource
@@ -100,34 +117,7 @@ def list_jobs(
     for job in jobs:
         src_stmt = select(JobSource).where(JobSource.job_id == job.id)
         sources = session.exec(src_stmt).all()
-        result.append(
-            JobOut(
-                id=job.id,
-                job_hash=job.job_hash,
-                job_title=job.job_title,
-                company_name=job.company_name,
-                location_raw=job.location_raw,
-                location_normalized=job.location_normalized,
-                role_match=job.role_match,
-                salary_disclosed=job.salary_disclosed,
-                salary_min=job.salary_min,
-                salary_max=job.salary_max,
-                description_clean=job.description_clean,
-                posted_date=job.posted_date,
-                application_state=job.application_state,
-                state_updated_date=job.state_updated_date,
-                created_at=job.created_at,
-                sources=[
-                    JobSourceOut(
-                        id=s.id,
-                        platform=s.platform,
-                        url=s.url,
-                        scraped_date=s.scraped_date,
-                    )
-                    for s in sources
-                ],
-            )
-        )
+        result.append(_job_to_out(job, sources))
 
     return result
 
@@ -160,6 +150,9 @@ def update_job_state(
     src_stmt = select(JobSource).where(JobSource.job_id == job.id)
     sources = session.exec(src_stmt).all()
 
+    return _job_to_out(job, sources)
+
+def _job_to_out(job: Job, sources: list[JobSource]) -> JobOut:
     return JobOut(
         id=job.id,
         job_hash=job.job_hash,
@@ -172,6 +165,7 @@ def update_job_state(
         salary_min=job.salary_min,
         salary_max=job.salary_max,
         description_clean=job.description_clean,
+        image_url=job.image_url,
         posted_date=job.posted_date,
         application_state=job.application_state,
         state_updated_date=job.state_updated_date,

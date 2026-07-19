@@ -176,6 +176,8 @@ class RoosterScraper(BaseScraper):
             # Salary — rooster provides structured min/max/currency
             salary_raw = self._format_salary(item)
 
+            image_url = item.get("company_logo_url")
+
             return RawJobPosting(
                 job_title=title,
                 company_name=company,
@@ -184,6 +186,7 @@ class RoosterScraper(BaseScraper):
                 description_raw=description,
                 posted_date_raw=posted_date,
                 source_url=source_url,
+                image_url=image_url,
             )
         except (KeyError, TypeError):
             logger.warning(

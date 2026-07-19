@@ -29,11 +29,12 @@ class Job(SQLModel, table=True):
     salary_max: Optional[int] = None
 
     description_clean: Optional[str] = None
+    image_url: Optional[str] = None  # company logo or job image
 
     posted_date: Optional[datetime] = None
 
-    # Pipeline state: DISCOVERED | REVIEWING | APPLIED | INTERVIEWING | ARCHIVED
-    application_state: str = "DISCOVERED"
+    # Pipeline state: NEW | APPLIED
+    application_state: str = "NEW"
     state_updated_date: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )

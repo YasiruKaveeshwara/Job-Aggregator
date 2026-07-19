@@ -146,6 +146,12 @@ class JobenvoyScraper(BaseScraper):
         time_tag = section.find("span", class_="time-left")
         time_left = time_tag.get_text(strip=True) if time_tag else None
 
+        # Image URL: <img> inside the link
+        img = link.find("img")
+        image_url = img.get("src") if img else None
+        if image_url and not image_url.startswith("http"):
+            image_url = f"{_BASE_URL}{image_url}"
+
         return RawJobPosting(
             job_title=title,
             company_name=company,
@@ -154,4 +160,5 @@ class JobenvoyScraper(BaseScraper):
             description_raw=f"Job type: {job_type}" if job_type else "",
             posted_date_raw=time_left,  # "🕒 12 days left" — normalize.py handles
             source_url=source_url,
+            image_url=image_url,
         )

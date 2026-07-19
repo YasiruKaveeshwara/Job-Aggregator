@@ -142,8 +142,9 @@ def _insert_new_job(
         salary_min=posting.salary_min,
         salary_max=posting.salary_max,
         description_clean=posting.description_clean,
+        image_url=posting.image_url,
         posted_date=posted_date,
-        application_state="DISCOVERED",
+        application_state="NEW",
         state_updated_date=now,
         created_at=now,
     )

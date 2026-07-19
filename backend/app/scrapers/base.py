@@ -46,6 +46,7 @@ class RawJobPosting(BaseModel):
     description_raw: str
     posted_date_raw: Optional[str] = None  # raw string; normalize.py parses it
     source_url: str
+    image_url: Optional[str] = None        # company logo or job image URL
 
 
 # ── Robot-file cache ──────────────────────────────────────────────────

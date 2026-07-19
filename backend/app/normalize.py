@@ -84,6 +84,7 @@ class NormalizedPosting:
     posted_date_raw: Optional[str]   # still raw; orchestrator parses to datetime
     source_url: str
     platform: str                    # which scraper produced this
+    image_url: Optional[str] = None  # company logo or job image URL
 
 
 # ── Public API ───────────────────────────────────────────────────────
@@ -124,6 +125,7 @@ def normalize(
         posted_date_raw=raw.posted_date_raw,
         source_url=raw.source_url,
         platform=platform,
+        image_url=raw.image_url,
     )
 
 

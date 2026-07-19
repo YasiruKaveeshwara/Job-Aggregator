@@ -40,6 +40,13 @@ def _run_migrations() -> None:
             cur.execute("ALTER TABLE source ADD COLUMN last_scraped_at TIMESTAMP")
             _logger.info("Migration: added 'last_scraped_at' to source table")
 
+        # ── Job.image_url ─────────────────────────────────────────
+        cur.execute("PRAGMA table_info(job)")
+        job_cols = {row[1] for row in cur.fetchall()}
+        if "image_url" not in job_cols:
+            cur.execute("ALTER TABLE job ADD COLUMN image_url TEXT")
+            _logger.info("Migration: added 'image_url' to job table")
+
         conn.commit()
         conn.close()
     except Exception:

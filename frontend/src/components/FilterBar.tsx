@@ -7,18 +7,22 @@ interface FilterBarProps {
   filterSource: string;
   filterRole: string;
   filterQ: string;
+  filterDateFrom: string;
+  filterDateTo: string;
   onStateChange: (v: string) => void;
   onSourceChange: (v: string) => void;
   onRoleChange: (v: string) => void;
   onQChange: (v: string) => void;
+  onDateFromChange: (v: string) => void;
+  onDateToChange: (v: string) => void;
 }
 
-const STATES = ["DISCOVERED", "REVIEWING", "APPLIED", "INTERVIEWING", "ARCHIVED"];
+const STATES = ["NEW", "APPLIED"];
 
 export default function FilterBar({
   sources, roleOptions,
-  filterState, filterSource, filterRole, filterQ,
-  onStateChange, onSourceChange, onRoleChange, onQChange,
+  filterState, filterSource, filterRole, filterQ, filterDateFrom, filterDateTo,
+  onStateChange, onSourceChange, onRoleChange, onQChange, onDateFromChange, onDateToChange,
 }: FilterBarProps) {
   const selectStyle: React.CSSProperties = {
     background: "var(--bg-surface)",
@@ -31,7 +35,7 @@ export default function FilterBar({
     cursor: "pointer",
   };
 
-  const hasFilter = filterState || filterSource || filterRole || filterQ;
+  const hasFilter = filterState || filterSource || filterRole || filterQ || filterDateFrom || filterDateTo;
 
   return (
     <div
@@ -76,6 +80,28 @@ export default function FilterBar({
         ))}
       </select>
 
+      {/* Date From */}
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>From:</span>
+        <input
+          type="date"
+          style={selectStyle}
+          value={filterDateFrom}
+          onChange={(e) => onDateFromChange(e.target.value)}
+        />
+      </div>
+
+      {/* Date To */}
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>To:</span>
+        <input
+          type="date"
+          style={selectStyle}
+          value={filterDateTo}
+          onChange={(e) => onDateToChange(e.target.value)}
+        />
+      </div>
+
       {/* Clear */}
       {hasFilter && (
         <button
@@ -86,6 +112,8 @@ export default function FilterBar({
             onSourceChange("");
             onRoleChange("");
             onQChange("");
+            onDateFromChange("");
+            onDateToChange("");
           }}
         >
           ✕ Clear

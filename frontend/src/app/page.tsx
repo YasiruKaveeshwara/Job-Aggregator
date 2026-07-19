@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getJobs, updateJobState, getSources } from "@/lib/api";
 import type { Job, ApplicationState, Source } from "@/types/job";
-import KanbanBoard from "@/components/KanbanBoard";
+import JobCard from "@/components/JobCard";
 import FilterBar from "@/components/FilterBar";
 
 export default function DashboardPage() {
@@ -11,11 +11,12 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Active filters
   const [filterState, setFilterState] = useState("");
   const [filterSource, setFilterSource] = useState("");
   const [filterRole, setFilterRole] = useState("");
   const [filterQ, setFilterQ] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -59,6 +60,14 @@ export default function DashboardPage() {
       const q = filterQ.toLowerCase();
       if (!j.job_title.toLowerCase().includes(q) && !j.company_name.toLowerCase().includes(q))
         return false;
+    }
+    if (j.posted_date) {
+      const postedDate = new Date(j.posted_date).toISOString().split("T")[0];
+      if (filterDateFrom && postedDate < filterDateFrom) return false;
+      if (filterDateTo && postedDate > filterDateTo) return false;
+    } else if (filterDateFrom || filterDateTo) {
+      // If filtering by date, hide jobs without a posted_date
+      return false;
     }
     return true;
   });
@@ -161,10 +170,14 @@ export default function DashboardPage() {
         filterSource={filterSource}
         filterRole={filterRole}
         filterQ={filterQ}
+        filterDateFrom={filterDateFrom}
+        filterDateTo={filterDateTo}
         onStateChange={setFilterState}
         onSourceChange={setFilterSource}
         onRoleChange={setFilterRole}
         onQChange={setFilterQ}
+        onDateFromChange={setFilterDateFrom}
+        onDateToChange={setFilterDateTo}
       />
 
       {/* Empty state */}
@@ -232,8 +245,12 @@ export default function DashboardPage() {
           </p>
         </div>
       ) : (
-        /* Kanban */
-        <KanbanBoard jobs={filteredJobs} onStateChange={handleStateChange} />
+        /* List View */
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {filteredJobs.map(job => (
+            <JobCard key={job.id} job={job} onStateChange={handleStateChange} />
+          ))}
+        </div>
       )}
     </div>
   );
