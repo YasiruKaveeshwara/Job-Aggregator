@@ -48,6 +48,7 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
 
 # ── Public API ───────────────────────────────────────────────────────
 
+
 def run_scrape(run_id: int, sites: list[str] | str) -> None:
     """
     Execute a scrape run.
@@ -94,21 +95,36 @@ def _process_site(run_id: int, site_name: str) -> None:
         source = session.exec(statement).first()
         if source and not source.enabled:
             logger.info("[orchestrator] %s is disabled -- skipping", site_name)
-            _update_site_result(run_id, site_name, {
-                "found": 0, "new": 0, "duplicates": 0,
-                "error": "disabled",
-            })
+            _update_site_result(
+                run_id,
+                site_name,
+                {
+                    "found": 0,
+                    "new": 0,
+                    "duplicates": 0,
+                    "error": "disabled",
+                },
+            )
             return
 
     # Get the scraper class
     scraper_cls = SCRAPER_REGISTRY.get(site_name)
     if scraper_cls is None:
         logger.warning("[orchestrator] No scraper registered for %s", site_name)
-        _update_site_result(run_id, site_name, {
-            "found": 0, "new": 0, "duplicates": 0,
-            "error": f"no scraper for {site_name}",
-        })
+        _update_site_result(
+            run_id,
+            site_name,
+            {
+                "found": 0,
+                "new": 0,
+                "duplicates": 0,
+                "error": f"no scraper for {site_name}",
+            },
+        )
         return
+
+    fetch_error: str | None = None
+    raw_postings = []
 
     # ── Fetch ────────────────────────────────────────────────────
     try:
@@ -116,62 +132,75 @@ def _process_site(run_id: int, site_name: str) -> None:
         raw_postings = scraper.fetch()
     except Exception as exc:
         logger.exception("[orchestrator] %s fetch failed", site_name)
-        _update_site_result(run_id, site_name, {
-            "found": 0, "new": 0, "duplicates": 0,
-            "error": str(exc),
-        })
-        return
+        fetch_error = str(exc)
 
     found = len(raw_postings)
     new_count = 0
     dup_count = 0
 
-    # ── Normalize + Dedup ────────────────────────────────────────
-    with Session(engine) as session:
-        for raw in raw_postings:
-            # Normalize (role-keyword filter)
-            normalized = normalize(raw, platform=site_name)
-            if normalized is None:
-                # Filtered out by role-keyword matching
-                continue
+    try:
+        if fetch_error is None:
+            # ── Normalize + Dedup ────────────────────────────────────────
+            with Session(engine) as session:
+                for raw in raw_postings:
+                    # Normalize (role-keyword filter)
+                    normalized = normalize(raw, platform=site_name)
+                    if normalized is None:
+                        # Filtered out by role-keyword matching
+                        continue
 
-            # Dedup + insert
-            try:
-                result = dedup_and_insert(session, normalized)
-                if result == "new":
-                    new_count += 1
-                else:
-                    dup_count += 1
-            except Exception:
-                logger.warning(
-                    "[orchestrator] Failed to insert posting '%s' from %s",
-                    raw.job_title,
-                    site_name,
-                    exc_info=True,
-                )
+                    # Dedup + insert
+                    try:
+                        result = dedup_and_insert(session, normalized)
+                        if result == "new":
+                            new_count += 1
+                        else:
+                            dup_count += 1
+                    except Exception:
+                        logger.warning(
+                            "[orchestrator] Failed to insert posting '%s' from %s",
+                            raw.job_title,
+                            site_name,
+                            exc_info=True,
+                        )
 
-        session.commit()
+                session.commit()
 
-    logger.info(
-        "[orchestrator] %s: found=%d, new=%d, duplicates=%d",
-        site_name,
-        found,
-        new_count,
-        dup_count,
-    )
+            logger.info(
+                "[orchestrator] %s: found=%d, new=%d, duplicates=%d",
+                site_name,
+                found,
+                new_count,
+                dup_count,
+            )
 
-    _update_site_result(run_id, site_name, {
-        "found": found,
-        "new": new_count,
-        "duplicates": dup_count,
-        "error": None,
-    })
-
-    # Update last_scraped_at on the Source row
-    _update_source_timestamp(site_name)
+            _update_site_result(
+                run_id,
+                site_name,
+                {
+                    "found": found,
+                    "new": new_count,
+                    "duplicates": dup_count,
+                    "error": None,
+                },
+            )
+        else:
+            _update_site_result(
+                run_id,
+                site_name,
+                {
+                    "found": 0,
+                    "new": 0,
+                    "duplicates": 0,
+                    "error": fetch_error,
+                },
+            )
+    finally:
+        _update_source_timestamp(site_name)
 
 
 # ── ScrapeRun helpers ────────────────────────────────────────────────
+
 
 def _update_site_result(
     run_id: int,
@@ -218,7 +247,7 @@ def _mark_run_failed(run_id: int) -> None:
 
 
 def _update_source_timestamp(site_name: str) -> None:
-    """Set Source.last_scraped_at to now after a successful scrape."""
+    """Set Source.last_scraped_at to now after the latest scrape attempt."""
     with Session(engine) as session:
         statement = select(Source).where(Source.name == site_name)
         source = session.exec(statement).first()
