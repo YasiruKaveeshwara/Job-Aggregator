@@ -1,30 +1,35 @@
 """
-governmentjob.lk scraper — WordPress REST API + HTML fallback.
+governmentjob.lk scraper — browser-visible search results + API/HTML fallback.
 
-Uses the WP REST API ``GET /wp-json/wp/v2/posts`` to fetch vacancy posts
-from the "Government Job Vacancies" category (id=15).  Falls back to HTML
-scraping of ``/government-job-vacancies/`` if the API is unavailable.
+The public search results page for ``?s=software&post_type=job_listing`` is
+rendered as article cards and is the most reliable way to fetch the job
+postings that appear in the browser. We use a browser context to load those
+public pages, then fall back to the WordPress REST API and the older HTML
+category page if needed.
 
-This site publishes blog-style vacancy announcements (e.g. "Ministry of
-Defence Vacancies 2026"), not structured job cards.  Each post title serves
-as the job_title, and the post content contains the full description.
-The "company" is extracted from the title (e.g. "Ministry of Defence").
-
-Lower frequency source — mostly non-tech public-sector roles, but
-occasionally includes state-owned tech employer postings (ICTA, LK Domain
-Registry, etc.).  Role-keyword filtering in normalize.py handles relevance.
+The site still publishes some blog-style vacancy announcements, so we keep a
+fallback parser for the older layouts as well.
 """
 
 import logging
 import re
 from html import unescape
 from typing import Any, Optional
+from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup
 
 from app.scrapers.base import BaseScraper, RawJobPosting
 
 logger = logging.getLogger(__name__)
+
+# Browser-visible search results
+_SEARCH_QUERY = "software"
+_SEARCH_URL = "https://governmentjob.lk/?s={query}&post_type=job_listing"
+_SEARCH_PAGE_URL = (
+    "https://governmentjob.lk/page/{page}/?s={query}&post_type=job_listing"
+)
+_MAX_SEARCH_PAGES = 13
 
 # WP REST API endpoint — category 15 = "Government Job Vacancies"
 _WP_API_URL = "https://governmentjob.lk/wp-json/wp/v2/posts"
@@ -39,20 +44,133 @@ _TITLE_PATTERN = re.compile(r"^(.+?)\s+(?:Vacancies|Vacancy|Jobs?)\b", re.IGNORE
 
 
 class GovernmentjobScraper(BaseScraper):
-    """Scraper for governmentjob.lk using WP REST API with HTML fallback."""
+    """Scraper for governmentjob.lk search results with fallbacks."""
 
     platform_name = "governmentjob.lk"
 
     def fetch(self) -> list[RawJobPosting]:
         """Fetch government job vacancy posts."""
-        # Try WP REST API first
+        results = self._fetch_via_browser_search()
+        if results:
+            return results
+
+        # Try WP REST API next
         results = self._fetch_via_api()
         if results:
             return results
 
         # Fallback to HTML scraping
-        logger.info("[%s] WP API failed — falling back to HTML", self.platform_name)
+        logger.info(
+            "[%s] Browser/API failed — falling back to HTML", self.platform_name
+        )
         return self._fetch_via_html()
+
+    # ── Browser search results approach ─────────────────────────────
+
+    def _fetch_via_browser_search(self) -> list[RawJobPosting]:
+        """Fetch public search results pages using a browser context."""
+        try:
+            from playwright.sync_api import sync_playwright
+        except Exception:
+            logger.info("[%s] Playwright not available", self.platform_name)
+            return []
+
+        query = quote_plus(_SEARCH_QUERY)
+        results: list[RawJobPosting] = []
+        seen_urls: set[str] = set()
+
+        try:
+            with sync_playwright() as playwright:
+                browser = self._launch_browser(playwright)
+                try:
+                    page = browser.new_page(
+                        user_agent=(
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/126.0.0.0 Safari/537.36"
+                        ),
+                        locale="en-US",
+                        viewport={"width": 1440, "height": 1200},
+                    )
+
+                    for page_num in range(1, _MAX_SEARCH_PAGES + 1):
+                        url = (
+                            _SEARCH_URL.format(query=query)
+                            if page_num == 1
+                            else _SEARCH_PAGE_URL.format(page=page_num, query=query)
+                        )
+
+                        try:
+                            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                            page.wait_for_selector("main article", timeout=10000)
+                        except Exception:
+                            logger.warning(
+                                "[%s] Browser load failed for %s page %d",
+                                self.platform_name,
+                                url,
+                                page_num,
+                                exc_info=True,
+                            )
+                            break
+
+                        page_results = self._parse_search_results_page(page.content())
+                        if not page_results:
+                            logger.info(
+                                "[%s] No browser search results on page %d — stopping",
+                                self.platform_name,
+                                page_num,
+                            )
+                            break
+
+                        new_jobs = 0
+                        for job in page_results:
+                            if job.source_url not in seen_urls:
+                                seen_urls.add(job.source_url)
+                                results.append(job)
+                                new_jobs += 1
+
+                        logger.info(
+                            "[%s] Browser search page %d yielded %d new postings (total: %d)",
+                            self.platform_name,
+                            page_num,
+                            new_jobs,
+                            len(results),
+                        )
+                finally:
+                    browser.close()
+        except Exception:
+            logger.warning(
+                "[%s] Browser search fetch failed",
+                self.platform_name,
+                exc_info=True,
+            )
+            return []
+
+        logger.info(
+            "[%s] Browser search finished — %d postings collected",
+            self.platform_name,
+            len(results),
+        )
+        return results
+
+    def _launch_browser(self, playwright):
+        """Launch a Chromium browser using the best available local install."""
+        launch_options = [
+            {},
+            {"channel": "msedge"},
+            {"channel": "chrome"},
+        ]
+
+        last_error: Exception | None = None
+        for options in launch_options:
+            try:
+                return playwright.chromium.launch(headless=True, **options)
+            except Exception as exc:
+                last_error = exc
+
+        if last_error:
+            raise last_error
+        raise RuntimeError("Could not launch a browser")
 
     # ── WP REST API approach ─────────────────────────────────────────
 
@@ -162,6 +280,71 @@ class GovernmentjobScraper(BaseScraper):
             "[%s] HTML fallback yielded %d postings", self.platform_name, len(results)
         )
         return results
+
+    def _parse_search_results_page(self, html: str) -> list[RawJobPosting]:
+        """Parse browser-rendered search result cards."""
+        soup = BeautifulSoup(html, "html.parser")
+        postings: list[RawJobPosting] = []
+
+        for article in soup.select("main article"):
+            posting = self._parse_search_article(article)
+            if posting:
+                postings.append(posting)
+
+        return postings
+
+    def _parse_search_article(self, article) -> Optional[RawJobPosting]:
+        """Extract a posting from the browser-rendered search result card."""
+        link = article.select_one("h2.gjc-title a[href]") or article.select_one(
+            'a[href*="/job/"]'
+        )
+        if not link:
+            return None
+
+        title = link.get_text(strip=True)
+        source_url = link.get("href", "")
+        if not title or not source_url:
+            return None
+
+        company_tag = article.select_one("p.gjc-company")
+        company = (
+            company_tag.get_text(strip=True)
+            if company_tag
+            else "Government of Sri Lanka"
+        )
+
+        location = self._clean_card_text(article.select_one("span.gjc-pill--loc"))
+        employment_type = self._clean_card_text(
+            article.select_one("span.gjc-pill--type")
+        )
+        salary = self._clean_card_text(article.select_one("span.gjc-pill--salary"))
+        posted_hint = self._clean_card_text(article.select_one("span.gjc-pill--soon"))
+        posted_date = posted_hint or self._clean_card_text(
+            article.select_one("span.gjc-time")
+        )
+
+        img = article.select_one("img.gjc-logo-img")
+        image_url = img.get("src") if img else None
+
+        description_parts = [part for part in [employment_type, salary] if part]
+
+        return RawJobPosting(
+            job_title=title,
+            company_name=company,
+            location_raw=location or "Sri Lanka",
+            salary_raw=salary,
+            description_raw=" | ".join(description_parts),
+            posted_date_raw=posted_date,
+            source_url=source_url,
+            image_url=image_url,
+        )
+
+    @staticmethod
+    def _clean_card_text(node) -> Optional[str]:
+        if not node:
+            return None
+        text = node.get_text(" ", strip=True)
+        return text or None
 
     def _parse_blog_card(self, article) -> Optional[RawJobPosting]:
         """Extract a posting from a blog-card <article>."""
