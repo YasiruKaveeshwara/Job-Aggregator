@@ -1,8 +1,9 @@
 """
-jobenvoy.com scraper — HTML-based, server-rendered listings.
+jobenvoy.com scraper — HTML-based, public search listings.
 
-Entry point: ``https://jobenvoy.com/jobs?cat=17`` (IT–Software category)
-The site also has ``?cat=16`` (IT–Hardware/Network) worth checking.
+Entry point: ``https://jobenvoy.com/jobs?q=software&country=LK``.
+The page exposes a public search UI plus pagination links, and the job card
+markup is stable across the visible results pages.
 
 Job card HTML structure::
 
@@ -25,6 +26,7 @@ Job card HTML structure::
 
 import logging
 from typing import Optional
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
 
@@ -33,55 +35,66 @@ from app.scrapers.base import BaseScraper, RawJobPosting
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://jobenvoy.com"
-
-# Category IDs for IT-related jobs
-_CATEGORY_URLS = [
-    f"{_BASE_URL}/jobs?cat=17",  # IT – Software Jobs
-    f"{_BASE_URL}/jobs?cat=16",  # IT – Hardware / Network Jobs
-]
+_SEARCH_URL = f"{_BASE_URL}/jobs?q=software&country=LK"
+_MAX_PAGES = 3
 
 
 class JobenvoyScraper(BaseScraper):
-    """Scraper for jobenvoy.com using server-rendered HTML."""
+    """Scraper for jobenvoy.com using public search-result HTML."""
 
     platform_name = "jobenvoy.com"
 
     def fetch(self) -> list[RawJobPosting]:
-        """Fetch IT job postings from jobenvoy.com."""
+        """Fetch software job postings from jobenvoy.com."""
         results: list[RawJobPosting] = []
         seen_urls: set[str] = set()
 
         with self._get_client() as client:
-            for cat_url in _CATEGORY_URLS:
-                if not self.robots_allowed(cat_url):
-                    logger.warning("robots.txt disallows %s — skipping", cat_url)
-                    continue
+            next_url: Optional[str] = _SEARCH_URL
+
+            for page_num in range(1, _MAX_PAGES + 1):
+                if not next_url:
+                    break
+
+                if not self.robots_allowed(next_url):
+                    logger.warning("robots.txt disallows %s — skipping", next_url)
+                    break
 
                 try:
-                    response = self._request_with_retry(client, "GET", cat_url)
+                    response = self._request_with_retry(client, "GET", next_url)
                 except Exception:
                     logger.warning(
                         "[%s] Failed to fetch %s — skipping",
                         self.platform_name,
-                        cat_url,
+                        next_url,
                         exc_info=True,
                     )
-                    continue
+                    break
 
-                page_results = self._parse_listing_page(response.text)
+                page_results, discovered_next_url = self._parse_listing_page(
+                    response.text, next_url
+                )
 
-                # Deduplicate across categories
+                new_jobs = 0
                 for posting in page_results:
                     if posting.source_url not in seen_urls:
                         seen_urls.add(posting.source_url)
                         results.append(posting)
+                        new_jobs += 1
 
                 logger.info(
-                    "[%s] %s yielded %d postings",
+                    "[%s] page %d (%s) yielded %d new postings (total: %d)",
                     self.platform_name,
-                    cat_url,
-                    len(page_results),
+                    page_num,
+                    next_url,
+                    new_jobs,
+                    len(results),
                 )
+
+                if not discovered_next_url or discovered_next_url == next_url:
+                    break
+
+                next_url = discovered_next_url
 
         logger.info(
             "[%s] Finished — %d unique postings collected",
@@ -90,10 +103,13 @@ class JobenvoyScraper(BaseScraper):
         )
         return results
 
-    def _parse_listing_page(self, html: str) -> list[RawJobPosting]:
+    def _parse_listing_page(
+        self, html: str, base_url: str
+    ) -> tuple[list[RawJobPosting], Optional[str]]:
         """Parse a single listing page into RawJobPosting objects."""
         soup = BeautifulSoup(html, "html.parser")
         postings: list[RawJobPosting] = []
+        next_url: Optional[str] = None
 
         # Job cards are in <div class="job-card-section">
         for section in soup.select("div.job-card-section"):
@@ -108,7 +124,13 @@ class JobenvoyScraper(BaseScraper):
                     exc_info=True,
                 )
 
-        return postings
+        next_link = soup.select_one('a[href][rel="next"]') or soup.find(
+            "a", string=lambda s: isinstance(s, str) and s.strip().lower() == "next"
+        )
+        if next_link and next_link.get("href"):
+            next_url = urljoin(base_url, next_link.get("href"))
+
+        return postings, next_url
 
     def _parse_card(self, section: Tag) -> Optional[RawJobPosting]:
         """Extract a single job posting from a job-card-section div."""
