@@ -29,6 +29,7 @@ _DEFAULT_SOURCES = [
     "jobenvoy.com",
     "rooster.jobs",
     "topjobs.lk",
+    "xpress.jobs",
 ]
 
 

@@ -20,6 +20,7 @@ const PLATFORM_COLORS: Record<string, string> = {
 	"jobenvoy.com": "badge-purple",
 	"rooster.jobs": "badge-cyan",
 	"topjobs.lk": "badge-red",
+	"xpress.jobs": "badge-neutral",
 };
 
 export default function JobCard({ job, onStateChange }: JobCardProps) {
