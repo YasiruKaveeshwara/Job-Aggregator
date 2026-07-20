@@ -70,6 +70,14 @@ class ScrapeRun(SQLModel, table=True):
         "itpro.lk":       {"found": 40, "new": 5, "duplicates": 35, "error": null},
         "anyjobok.com":   {"found": 12, "new": 3, "duplicates": 9, "error": null}
     }
+
+    `progress` is a JSON string like:
+    {
+        "total_sites": 9,
+        "completed_sites": 3,
+        "current_site": "jobenvoy.com",
+        "requested_sites": ["itpro.lk", "anyjobok.com", ...]
+    }
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -78,12 +86,15 @@ class ScrapeRun(SQLModel, table=True):
     )
     finished_at: Optional[datetime] = None
 
-    # RUNNING | COMPLETED | FAILED
+    # RUNNING | COMPLETED | FAILED | CANCELLED
     status: str = "RUNNING"
     triggered_by: str = "manual"
 
     # Per-site breakdown, updated live so the admin portal can poll progress
     site_results: str = "{}"  # JSON string
+
+    # Progress tracking for the admin portal
+    progress: str = "{}"  # JSON string
 
 
 class Source(SQLModel, table=True):

@@ -58,11 +58,19 @@ export interface SiteResult {
   error: string | null;
 }
 
+export interface ScrapeProgress {
+  total_sites: number;
+  completed_sites: number;
+  current_site: string | null;
+  requested_sites: string[];
+}
+
 export interface ScrapeRun {
   id: number;
   started_at: string; // ISO 8601
   finished_at: string | null; // ISO 8601
-  status: "RUNNING" | "COMPLETED" | "FAILED";
+  status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
   triggered_by: string;
   site_results: Record<string, SiteResult>;
+  progress: ScrapeProgress;
 }

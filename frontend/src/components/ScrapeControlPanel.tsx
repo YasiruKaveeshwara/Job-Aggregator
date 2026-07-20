@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { startScrape, getScrapeStatus, getScrapeRuns, toggleSource } from "@/lib/api";
+import { startScrape, getScrapeStatus, getScrapeRuns, toggleSource, cancelScrape } from "@/lib/api";
 import { useLiveRelativeTime } from "@/lib/datetime";
 import type { Source, ScrapeRun, SiteResult } from "@/types/job";
 
@@ -29,6 +29,7 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 	const [currentRun, setCurrentRun] = useState<ScrapeRun | null>(null);
 	const [mergedResults, setMergedResults] = useState<Record<string, SiteResult>>({});
 	const [error, setError] = useState<string | null>(null);
+	const [cancelling, setCancelling] = useState(false);
 	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	const stopPolling = useCallback(() => {
@@ -50,20 +51,22 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 					if (run.site_results) {
 						setMergedResults((prev) => ({ ...prev, ...run.site_results }));
 					}
-					if (run.status === "COMPLETED") {
+					if (run.status === "COMPLETED" || run.status === "CANCELLED") {
 						setRunState("done");
 						stopPolling();
+						setCancelling(false);
 						onRunFinished?.();
 					} else if (run.status === "FAILED") {
 						setRunState("failed");
 						stopPolling();
+						setCancelling(false);
 						onRunFinished?.();
 					}
 				} catch {
 					setError("Lost connection to backend");
 					stopPolling();
 				}
-			}, 2000);
+			}, 1500);
 		},
 		[onRunFinished, stopPolling],
 	);
@@ -76,7 +79,6 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 				if (cancelled) return;
 
 				const merged: Record<string, SiteResult> = {};
-				// Runs are newest-first. Iterate oldest-first to overwrite with newer results.
 				for (let i = runs.length - 1; i >= 0; i--) {
 					Object.assign(merged, runs[i].site_results);
 				}
@@ -88,7 +90,7 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 				if (latest?.status === "RUNNING") {
 					setRunState("running");
 					startPolling(latest.id);
-				} else if (latest?.status === "COMPLETED") {
+				} else if (latest?.status === "COMPLETED" || latest?.status === "CANCELLED") {
 					setRunState("done");
 				} else if (latest?.status === "FAILED") {
 					setRunState("failed");
@@ -108,6 +110,7 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 	const handleStart = async (sites: string[] | "all") => {
 		setError(null);
 		setRunState("running");
+		setCancelling(false);
 		try {
 			const { run_id } = await startScrape(sites);
 			startPolling(run_id);
@@ -117,14 +120,32 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 		}
 	};
 
+	const handleCancel = async () => {
+		if (!currentRun) return;
+		setCancelling(true);
+		try {
+			await cancelScrape(currentRun.id);
+		} catch (e) {
+			setError(e instanceof Error ? e.message : String(e));
+			setCancelling(false);
+		}
+	};
+
 	const totalNew = currentRun ? Object.values(currentRun.site_results).reduce((s, r) => s + r.new, 0) : 0;
 	const lastFetchAt = currentRun?.finished_at ?? currentRun?.started_at ?? null;
 	const lastFetchLabel = useLiveRelativeTime(lastFetchAt);
 
+	// Progress calculations
+	const progress = currentRun?.progress;
+	const totalSites = progress?.total_sites ?? 0;
+	const completedSites = progress?.completed_sites ?? 0;
+	const currentSite = progress?.current_site ?? null;
+	const progressPercent = totalSites > 0 ? Math.round((completedSites / totalSites) * 100) : 0;
+
 	return (
 		<div className='card' style={{ padding: 20 }}>
 			{/* Action buttons */}
-			<div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+			<div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
 				<button
 					className='btn-primary'
 					disabled={runState === "running"}
@@ -145,9 +166,95 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 							/>
 							Running…
 						</>
-					:	"⚡ Start Fetching (All Sources)"}
+					:	"⚡ Fetch All Sources"}
 				</button>
+
+				{/* Stop button — only visible when running */}
+				{runState === "running" && (
+					<button
+						className='btn-ghost'
+						disabled={cancelling}
+						onClick={handleCancel}
+						style={{
+							fontSize: 12,
+							color: "var(--red)",
+							borderColor: "var(--red)",
+							display: "flex",
+							alignItems: "center",
+							gap: 5,
+						}}>
+						{cancelling ? "Stopping…" : "⏹ Stop"}
+					</button>
+				)}
 			</div>
+
+			{/* Progress bar — only visible when running */}
+			{runState === "running" && totalSites > 0 && (
+				<div style={{ marginBottom: 16 }}>
+					{/* Label */}
+					<div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
+						<span style={{ color: "var(--text-secondary)" }}>
+							{cancelling
+								? "Stopping after current site…"
+								: currentSite
+									? <>Fetching <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{currentSite}</span></>
+									: "Starting…"}
+						</span>
+						<span style={{ color: "var(--text-muted)" }}>
+							{completedSites}/{totalSites} sites ({progressPercent}%)
+						</span>
+					</div>
+
+					{/* Bar track */}
+					<div
+						style={{
+							width: "100%",
+							height: 8,
+							borderRadius: 4,
+							background: "var(--bg-surface)",
+							border: "1px solid var(--border-subtle)",
+							overflow: "hidden",
+						}}>
+						<div
+							style={{
+								width: `${progressPercent}%`,
+								height: "100%",
+								borderRadius: 4,
+								background: cancelling
+									? "var(--red)"
+									: "linear-gradient(90deg, var(--accent), var(--accent-light))",
+								transition: "width 0.5s ease-out",
+							}}
+						/>
+					</div>
+
+					{/* Completed sites chips */}
+					{completedSites > 0 && (
+						<div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
+							{(progress?.requested_sites ?? []).map((site) => {
+								const isDone = !!currentRun?.site_results[site];
+								const isCurrent = site === currentSite;
+								return (
+									<span
+										key={site}
+										style={{
+											fontSize: 10,
+											padding: "2px 8px",
+											borderRadius: 10,
+											fontWeight: 600,
+											background: isDone ? "rgba(34,197,94,0.15)" : isCurrent ? "rgba(99,102,241,0.15)" : "var(--bg-surface)",
+											color: isDone ? "var(--green)" : isCurrent ? "var(--accent)" : "var(--text-muted)",
+											border: `1px solid ${isDone ? "rgba(34,197,94,0.3)" : isCurrent ? "rgba(99,102,241,0.3)" : "var(--border-subtle)"}`,
+											...(isCurrent ? { animation: "pulse 1.5s ease-in-out infinite" } : {}),
+										}}>
+										{isDone ? "✓ " : isCurrent ? "● " : ""}{site}
+									</span>
+								);
+							})}
+						</div>
+					)}
+				</div>
+			)}
 
 			{/* Error */}
 			{error && (
@@ -177,6 +284,11 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 					<div style={{ marginBottom: 10, fontSize: 12, color: "var(--text-secondary)" }}>
 						Last all fetch:{" "}
 						<span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{lastFetchLabel || "—"}</span>
+						{currentRun?.status === "CANCELLED" && (
+							<span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)", fontStyle: "italic" }}>
+								(stopped early)
+							</span>
+						)}
 					</div>
 					<div
 						style={{
@@ -191,6 +303,8 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 								"Scraping in progress…"
 							: currentRun?.status === "FAILED" ?
 								"Run failed"
+							: currentRun?.status === "CANCELLED" ?
+								`Stopped — ${totalNew} new job${totalNew !== 1 ? "s" : ""} saved`
 							:	`Done — ${totalNew} new job${totalNew !== 1 ? "s" : ""} added`}
 						</span>
 					</div>
@@ -199,14 +313,10 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 					<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
 						{sources.map((src) => {
 							const result = mergedResults[src.name];
-							// If a run is running and doesn't have a result for this site yet,
-							// but the site is part of the requested ones, we want to show it as "waiting".
-							// Since we don't have the explicit site list for the run, we use the fact that
-							// if it's running, we consider all enabled sites as running unless we want to be precise.
-							// But actually, just showing the last merged result is fine.
 							const siteResults = currentRun?.site_results || {};
 							const isThisRunActive = currentRun?.status === "RUNNING" && (!result || Object.keys(siteResults).includes(src.name) || Object.keys(siteResults).length === 0);
-							
+							const isFetchingThisSite = currentRun?.status === "RUNNING" && currentSite === src.name;
+
 							return (
 								<SiteRow
 									key={src.name}
@@ -214,6 +324,7 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 									result={result}
 									color={PLATFORM_COLORS[src.name] ?? "#6b7280"}
 									running={currentRun?.status === "RUNNING" && isThisRunActive}
+									isFetching={isFetchingThisSite}
 									onToggle={async () => {
 										const updated = await toggleSource(src.name, !src.enabled);
 										onSourcesChange?.(sources.map((s) => (s.id === updated.id ? updated : s)));
@@ -238,6 +349,7 @@ function StatusDot({ status }: { status: string }) {
 	const color =
 		status === "COMPLETED" ? "var(--green)"
 		: status === "FAILED" ? "var(--red)"
+		: status === "CANCELLED" ? "var(--text-muted)"
 		: "var(--accent-light)";
 	return (
 		<span
@@ -259,6 +371,7 @@ function SiteRow({
 	result,
 	color,
 	running,
+	isFetching,
 	onToggle,
 	onRun,
 	runState,
@@ -267,6 +380,7 @@ function SiteRow({
 	result: SiteResult | undefined;
 	color: string;
 	running: boolean;
+	isFetching: boolean;
 	onToggle: () => void;
 	onRun: () => void;
 	runState: string;
@@ -277,13 +391,14 @@ function SiteRow({
 	return (
 		<div
 			style={{
-				background: "var(--bg-surface)",
-				border: "1px solid var(--border-subtle)",
+				background: isFetching ? "rgba(99,102,241,0.04)" : "var(--bg-surface)",
+				border: `1px solid ${isFetching ? "rgba(99,102,241,0.3)" : "var(--border-subtle)"}`,
 				borderRadius: 8,
 				padding: "12px 14px",
 				display: "flex",
 				alignItems: "center",
 				gap: 12,
+				transition: "all 0.3s ease",
 			}}>
 			{/* Dot */}
 			<span
@@ -294,6 +409,7 @@ function SiteRow({
 					background: !source.enabled ? "var(--text-muted)" : (done ? (result?.error ? "var(--red)" : "var(--green)") : color),
 					flexShrink: 0,
 					opacity: (done || !source.enabled) ? 1 : 0.5,
+					...(isFetching ? { animation: "pulse 1s ease-in-out infinite" } : {}),
 				}}
 			/>
 
@@ -301,6 +417,11 @@ function SiteRow({
 			<div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
 				<span style={{ fontSize: 13, fontWeight: 600 }}>
 					{source.name}
+					{isFetching && (
+						<span style={{ marginLeft: 6, fontSize: 10, color: "var(--accent)", fontWeight: 500 }}>
+							fetching…
+						</span>
+					)}
 				</span>
 				<span style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
 					{source.last_scraped_at ? `Last fetched ${new Date(source.last_scraped_at).toLocaleDateString()} (${relativeTime})` : "Never fetched"}

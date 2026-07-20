@@ -107,6 +107,7 @@ export default function RunHistoryTable({ refreshKey = 0 }: Props) {
 										className={`badge ${
 											run.status === "COMPLETED" ? "badge-green"
 											: run.status === "FAILED" ? "badge-red"
+											: run.status === "CANCELLED" ? "badge-amber"
 											: "badge-indigo"
 										}`}>
 										{run.status === "RUNNING" && (

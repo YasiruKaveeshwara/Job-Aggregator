@@ -2,7 +2,8 @@
 Scrape control endpoints.
 
 POST /api/scrape/run           -- start a scrape run (background task)
-GET  /api/scrape/status/{id}   -- poll a run's status
+GET  /api/scrape/status/{id}   -- poll a run's status + progress
+POST /api/scrape/cancel/{id}   -- cancel a running scrape gracefully
 GET  /api/scrape/runs          -- list past runs
 """
 
@@ -16,7 +17,7 @@ from sqlmodel import Session, col, select
 
 from app.db import get_session, engine
 from app.models import ScrapeRun
-from app.orchestrator import run_scrape
+from app.orchestrator import run_scrape, request_cancel
 
 router = APIRouter(prefix="/api/scrape", tags=["scrape"])
 
@@ -28,6 +29,14 @@ class ScrapeRunRequest(BaseModel):
     sites: Union[list[str], str]  # ["itpro.lk", "anyjobok.com"] or "all"
 
 
+class ProgressOut(BaseModel):
+    """Progress info for a running scrape."""
+    total_sites: int = 0
+    completed_sites: int = 0
+    current_site: Optional[str] = None
+    requested_sites: list[str] = []
+
+
 class ScrapeRunOut(BaseModel):
     """Response for a ScrapeRun record."""
     id: int
@@ -36,6 +45,7 @@ class ScrapeRunOut(BaseModel):
     status: str
     triggered_by: str
     site_results: dict[str, Any]  # parsed from JSON string
+    progress: ProgressOut
 
 
 class ScrapeRunCreated(BaseModel):
@@ -63,6 +73,7 @@ def start_scrape(
         status="RUNNING",
         triggered_by="manual",
         site_results="{}",
+        progress="{}",
     )
     session.add(run)
     session.commit()
@@ -87,6 +98,37 @@ def get_scrape_status(
     return _run_to_out(run)
 
 
+@router.post("/cancel/{run_id}")
+def cancel_scrape(
+    run_id: int,
+    session: Session = Depends(get_session),
+):
+    """
+    Cancel a running scrape gracefully.
+
+    The current site will finish processing, but no further sites will
+    be started.  All results gathered so far are saved.
+    """
+    run = session.get(ScrapeRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail=f"ScrapeRun {run_id} not found")
+
+    if run.status != "RUNNING":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Run {run_id} is not running (status: {run.status})",
+        )
+
+    success = request_cancel(run_id)
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not cancel run {run_id} — may have already finished",
+        )
+
+    return {"detail": f"Cancel signal sent for run {run_id}"}
+
+
 @router.get("/runs", response_model=list[ScrapeRunOut])
 def list_scrape_runs(
     session: Session = Depends(get_session),
@@ -106,6 +148,11 @@ def _run_to_out(run: ScrapeRun) -> ScrapeRunOut:
     except json.JSONDecodeError:
         site_results = {}
 
+    try:
+        progress_data = json.loads(run.progress or "{}")
+    except (json.JSONDecodeError, AttributeError):
+        progress_data = {}
+
     return ScrapeRunOut(
         id=run.id,
         started_at=run.started_at,
@@ -113,4 +160,5 @@ def _run_to_out(run: ScrapeRun) -> ScrapeRunOut:
         status=run.status,
         triggered_by=run.triggered_by,
         site_results=site_results,
+        progress=ProgressOut(**progress_data) if progress_data else ProgressOut(),
     )

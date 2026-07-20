@@ -10,11 +10,12 @@ Given a list of site names (or ``"all"`` for all enabled sites), for each one:
 4. Records per-site counts (``found``, ``new``, ``duplicates``, ``error``)
    into the ``ScrapeRun.site_results`` JSON *as it goes*, so the admin
    portal can poll progress live.
-5. Marks the ``ScrapeRun`` row ``COMPLETED`` (or ``FAILED``).
+5. Marks the ``ScrapeRun`` row ``COMPLETED`` (or ``FAILED`` / ``CANCELLED``).
 """
 
 import json
 import logging
+import threading
 from datetime import datetime, timezone
 
 from sqlmodel import Session, select
@@ -26,8 +27,6 @@ from app.normalize import normalize
 from app.scrapers.base import BaseScraper
 
 # ── Scraper registry ─────────────────────────────────────────────────
-# Import lazily inside the function to avoid circular imports at module
-# load time, but declare the mapping here for clarity.
 
 from app.scrapers.itpro import ItproScraper
 from app.scrapers.anyjobok import AnyjobokScraper
@@ -54,6 +53,42 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
 }
 
 
+# ── Cancel registry (thread-safe) ───────────────────────────────────
+# Maps run_id → threading.Event.  When set, the orchestrator loop checks
+# this flag between sites and aborts gracefully.
+
+_cancel_events: dict[int, threading.Event] = {}
+_cancel_lock = threading.Lock()
+
+
+def request_cancel(run_id: int) -> bool:
+    """
+    Signal a running scrape to stop after the current site finishes.
+
+    Returns True if the run was found and signalled, False otherwise.
+    """
+    with _cancel_lock:
+        event = _cancel_events.get(run_id)
+        if event is None:
+            return False
+        event.set()
+        return True
+
+
+def _register_cancel_event(run_id: int) -> threading.Event:
+    """Create and register a cancel event for a run."""
+    event = threading.Event()
+    with _cancel_lock:
+        _cancel_events[run_id] = event
+    return event
+
+
+def _unregister_cancel_event(run_id: int) -> None:
+    """Remove the cancel event when the run finishes."""
+    with _cancel_lock:
+        _cancel_events.pop(run_id, None)
+
+
 # ── Public API ───────────────────────────────────────────────────────
 
 
@@ -65,14 +100,19 @@ def run_scrape(run_id: int, sites: list[str] | str) -> None:
         run_id: ID of the ScrapeRun row (already created by the caller).
         sites: List of site names, or ``"all"`` for all enabled sites.
     """
+    cancel_event = _register_cancel_event(run_id)
     try:
-        _execute_run(run_id, sites)
+        _execute_run(run_id, sites, cancel_event)
     except Exception:
         logger.exception("[orchestrator] Fatal error in run %d", run_id)
         _mark_run_failed(run_id)
+    finally:
+        _unregister_cancel_event(run_id)
 
 
-def _execute_run(run_id: int, sites: list[str] | str) -> None:
+def _execute_run(
+    run_id: int, sites: list[str] | str, cancel_event: threading.Event
+) -> None:
     """Core logic, wrapped so the outer function can catch and mark FAILED."""
 
     # Resolve site list
@@ -86,9 +126,44 @@ def _execute_run(run_id: int, sites: list[str] | str) -> None:
 
     logger.info("[orchestrator] Run %d starting for sites: %s", run_id, site_names)
 
+    # Write initial progress
+    _update_progress(run_id, {
+        "total_sites": len(site_names),
+        "completed_sites": 0,
+        "current_site": site_names[0] if site_names else None,
+        "requested_sites": site_names,
+    })
+
     # Process each site independently
-    for site_name in site_names:
+    completed = 0
+    for i, site_name in enumerate(site_names):
+        # Check for cancellation BEFORE starting each site
+        if cancel_event.is_set():
+            logger.info(
+                "[orchestrator] Run %d CANCELLED after %d/%d sites",
+                run_id, completed, len(site_names),
+            )
+            _mark_run_cancelled(run_id)
+            return
+
+        # Update progress: which site we're currently scraping
+        _update_progress(run_id, {
+            "total_sites": len(site_names),
+            "completed_sites": completed,
+            "current_site": site_name,
+            "requested_sites": site_names,
+        })
+
         _process_site(run_id, site_name)
+        completed += 1
+
+    # Final progress update
+    _update_progress(run_id, {
+        "total_sites": len(site_names),
+        "completed_sites": completed,
+        "current_site": None,
+        "requested_sites": site_names,
+    })
 
     # Mark run as completed
     _mark_run_completed(run_id)
@@ -230,6 +305,17 @@ def _update_site_result(
         session.commit()
 
 
+def _update_progress(run_id: int, progress: dict) -> None:
+    """Update the progress JSON on the ScrapeRun row."""
+    with Session(engine) as session:
+        run = session.get(ScrapeRun, run_id)
+        if run is None:
+            return
+        run.progress = json.dumps(progress)
+        session.add(run)
+        session.commit()
+
+
 def _mark_run_completed(run_id: int) -> None:
     """Mark a ScrapeRun as COMPLETED."""
     with Session(engine) as session:
@@ -252,6 +338,18 @@ def _mark_run_failed(run_id: int) -> None:
             session.add(run)
             session.commit()
             logger.error("[orchestrator] Run %d FAILED", run_id)
+
+
+def _mark_run_cancelled(run_id: int) -> None:
+    """Mark a ScrapeRun as CANCELLED, saving all results gathered so far."""
+    with Session(engine) as session:
+        run = session.get(ScrapeRun, run_id)
+        if run:
+            run.status = "CANCELLED"
+            run.finished_at = datetime.now(timezone.utc)
+            session.add(run)
+            session.commit()
+            logger.info("[orchestrator] Run %d CANCELLED (partial results saved)", run_id)
 
 
 def _update_source_timestamp(site_name: str) -> None:
