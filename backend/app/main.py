@@ -31,6 +31,7 @@ _DEFAULT_SOURCES = [
     "topjobs.lk",
     "xpress.jobs",
     "findmyjob.lk",
+    "hire.lk",
 ]
 
 

@@ -20,6 +20,7 @@ const PLATFORM_COLORS: Record<string, string> = {
 	"topjobs.lk": "#ef4444",
 	"xpress.jobs": "#64748b",
 	"findmyjob.lk": "#10b981",
+	"hire.lk": "#3b82f6",
 };
 
 export default function ScrapeControlPanel({ sources, onRunFinished }: Props) {

@@ -22,6 +22,7 @@ const PLATFORM_COLORS: Record<string, string> = {
 	"topjobs.lk": "badge-red",
 	"xpress.jobs": "badge-neutral",
 	"findmyjob.lk": "badge-green",
+	"hire.lk": "badge-indigo",
 };
 
 export default function JobCard({ job, onStateChange }: JobCardProps) {
