@@ -1,7 +1,7 @@
 import logging
 import sqlite3
 
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.config import DATABASE_URL
 
@@ -15,11 +15,28 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
 )
 
+# ── Default search keywords (seeded once into the DB) ──────────────────
+_DEFAULT_SEARCH_KEYWORDS: list[str] = [
+    "software engineer",
+    "web developer",
+    "frontend developer",
+    "backend developer",
+    "full stack developer",
+    "software intern",
+    "data engineer",
+    "QA engineer",
+    "devops engineer",
+    "mobile developer",
+    "machine learning",
+    "software developer",
+]
+
 
 def create_db_and_tables() -> None:
     """Create all tables defined by SQLModel subclasses (if they don't exist)."""
     SQLModel.metadata.create_all(engine)
     _run_migrations()
+    _seed_search_keywords()
 
 
 def _run_migrations() -> None:
@@ -58,6 +75,22 @@ def _run_migrations() -> None:
         conn.close()
     except Exception:
         _logger.warning("Migration check failed (may be first run)", exc_info=True)
+
+
+def _seed_search_keywords() -> None:
+    """Insert default search keywords if the table is empty."""
+    # Import here to avoid circular import (models imports db indirectly)
+    from app.models import SearchKeyword
+
+    with Session(engine) as session:
+        existing = session.exec(select(SearchKeyword)).first()
+        if existing is not None:
+            return  # already seeded
+
+        for kw in _DEFAULT_SEARCH_KEYWORDS:
+            session.add(SearchKeyword(keyword=kw, enabled=True))
+        session.commit()
+        _logger.info("Seeded %d default search keywords", len(_DEFAULT_SEARCH_KEYWORDS))
 
 
 def get_session():

@@ -31,22 +31,14 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Tag
 
 from app.scrapers.base import BaseScraper, RawJobPosting
+from app.search_keywords import get_enabled_search_keywords
 
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://jobenvoy.com"
 _SEARCH_URL_TEMPLATE = f"{_BASE_URL}/jobs?q={{query}}&country=LK"
-_MAX_PAGES = 3
+_MAX_PAGES = 10
 
-# Keywords to search one by one
-_QUERIES = [
-    "software+engineer",
-    "web+developer",
-    "frontend+developer",
-    "backend+developer",
-    "full+stack+developer",
-    "software+intern",
-]
 
 
 class JobenvoyScraper(BaseScraper):
@@ -59,9 +51,15 @@ class JobenvoyScraper(BaseScraper):
         results: list[RawJobPosting] = []
         seen_urls: set[str] = set()
 
+        keywords = get_enabled_search_keywords()
+        if not keywords:
+            logger.warning("[%s] No search keywords in DB — skipping", self.platform_name)
+            return []
+
         with self._get_client() as client:
-            for query in _QUERIES:
-                start_url = _SEARCH_URL_TEMPLATE.format(query=query)
+            for query in keywords:
+                query_slug = query.replace(" ", "+")
+                start_url = _SEARCH_URL_TEMPLATE.format(query=query_slug)
                 next_url: Optional[str] = start_url
 
                 for page_num in range(1, _MAX_PAGES + 1):

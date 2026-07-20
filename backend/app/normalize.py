@@ -18,10 +18,10 @@ from bs4 import BeautifulSoup
 
 from app.config import (
     ROLE_KEYWORDS_EXCLUDE,
-    ROLE_KEYWORDS_INCLUDE,
     ROLE_KEYWORDS_INTERN_MODIFIER,
 )
 from app.scrapers.base import RawJobPosting
+from app.search_keywords import get_enabled_search_keywords
 
 
 # ── Company-name normalization ───────────────────────────────────────
@@ -172,6 +172,9 @@ def _match_role(title: str) -> Optional[str]:
     """
     title_lower = title.lower()
 
+    # Load include keywords from DB (same list scrapers use to search)
+    include_keywords = get_enabled_search_keywords()
+
     # Check exclusion list first
     for excl in ROLE_KEYWORDS_EXCLUDE:
         if excl.lower() in title_lower:
@@ -179,7 +182,7 @@ def _match_role(title: str) -> Optional[str]:
 
     # Check inclusion keywords — prefer the longest match
     matched_keyword: Optional[str] = None
-    for kw in ROLE_KEYWORDS_INCLUDE:
+    for kw in include_keywords:
         if kw.lower() in title_lower:
             if matched_keyword is None or len(kw) > len(matched_keyword):
                 matched_keyword = kw

@@ -39,6 +39,7 @@ from typing import Any, Optional
 from urllib.parse import urlencode
 
 from app.scrapers.base import BaseScraper, RawJobPosting
+from app.search_keywords import get_enabled_search_keywords
 
 logger = logging.getLogger(__name__)
 
@@ -49,15 +50,6 @@ _JOB_URL_TEMPLATE = f"{_BASE_URL}/job/{{job_id}}"
 _PAGE_SIZE = 20
 _MAX_PAGES_PER_QUERY = 10  # cap at 200 results per keyword
 
-# Keywords to search one by one
-_QUERIES = [
-    "software engineer",
-    "web developer",
-    "frontend developer",
-    "backend developer",
-    "full stack developer",
-    "software intern",
-]
 
 
 class XpressjobsScraper(BaseScraper):
@@ -74,8 +66,13 @@ class XpressjobsScraper(BaseScraper):
             logger.warning("[%s] robots.txt disallows — skipping", self.platform_name)
             return []
 
+        keywords = get_enabled_search_keywords()
+        if not keywords:
+            logger.warning("[%s] No search keywords in DB — skipping", self.platform_name)
+            return []
+
         with self._get_client() as client:
-            for query in _QUERIES:
+            for query in keywords:
                 new_count = self._fetch_query(client, query, results, seen_ids)
                 logger.info(
                     "[%s] Query '%s' → %d new (total: %d)",

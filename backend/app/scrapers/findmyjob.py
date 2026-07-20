@@ -34,6 +34,7 @@ from urllib.parse import urlencode
 from bs4 import BeautifulSoup
 
 from app.scrapers.base import BaseScraper, RawJobPosting
+from app.search_keywords import get_enabled_search_keywords
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +42,7 @@ _BASE_URL = "https://findmyjob.lk"
 _API_URL = f"{_BASE_URL}/wp-json/wp/v2/awsm_job_openings"
 
 _PER_PAGE = 20
-_MAX_PAGES_PER_QUERY = 5  # cap at 100 results per keyword
-
-# Keywords to search one by one
-_QUERIES = [
-    "software engineer",
-    "web developer",
-    "frontend developer",
-    "backend developer",
-    "full stack developer",
-    "software intern",
-]
+_MAX_PAGES_PER_QUERY = 10  # cap at 200 results per keyword
 
 _CATEGORY_SOFTWARE = "software-development-web-qa-data-gis"
 
@@ -73,8 +64,13 @@ class FindmyjobScraper(BaseScraper):
             logger.warning("[%s] robots.txt disallows — skipping", self.platform_name)
             return []
 
+        keywords = get_enabled_search_keywords()
+        if not keywords:
+            logger.warning("[%s] No search keywords in DB — skipping", self.platform_name)
+            return []
+
         with self._get_client() as client:
-            for query in _QUERIES:
+            for query in keywords:
                 new_count = self._fetch_query(client, results, seen_ids, search=query)
                 logger.info(
                     "[%s] Query '%s' → %d new (total: %d)",

@@ -32,6 +32,7 @@ import logging
 from typing import Any, Optional
 
 from app.scrapers.base import BaseScraper, RawJobPosting
+from app.search_keywords import get_enabled_search_keywords
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +42,8 @@ _JOB_URL_TEMPLATE = "https://rooster.jobs/jobs/{job_id}"
 # Queries to run — each maps to one or more role keywords we care about.
 # Using broader terms intentionally so we catch most variants, then
 # normalize.py's role-keyword filter handles precision.
-_QUERIES: list[list[str]] = [
-    ["software engineer"],
-    ["web developer"],
-    ["frontend developer"],
-    ["backend developer"],
-    ["full stack developer"],
-    ["software engineering intern"],
-]
-
 _PAGE_LIMIT = 20          # max items per page (API default)
-_MAX_PAGES_PER_QUERY = 5  # cap at 100 results per query term
+_MAX_PAGES_PER_QUERY = 10  # cap at 200 results per query term
 
 # Keep only jobs in Sri Lanka to avoid flooding with overseas roles
 _LOCATION_KEYWORDS = ["sri lanka", "colombo", "kandy", "galle", "jaffna",
@@ -75,9 +67,14 @@ class RoosterScraper(BaseScraper):
             logger.warning("[%s] robots.txt disallows API endpoint", self.platform_name)
             return []
 
+        keywords = get_enabled_search_keywords()
+        if not keywords:
+            logger.warning("[%s] No search keywords in DB — skipping", self.platform_name)
+            return []
+
         with self._get_client() as client:
-            for query_terms in _QUERIES:
-                query_results = self._fetch_query(client, query_terms, seen_ids)
+            for kw in keywords:
+                query_results = self._fetch_query(client, [kw], seen_ids)
                 results.extend(query_results)
 
         logger.info(

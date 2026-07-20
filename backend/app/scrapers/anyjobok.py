@@ -25,15 +25,12 @@ from bs4 import BeautifulSoup, Tag
 import httpx
 
 from app.scrapers.base import BaseScraper, RawJobPosting
+from app.search_keywords import get_enabled_search_keywords
 
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://anyjobok.com"
-_MAX_PAGES_PER_ENTRYPOINT = 3
-
-_ENTRYPOINTS = [
-    "/jobs",
-]
+_MAX_PAGES_PER_ENTRYPOINT = 10
 
 # Telltale strings from Cloudflare-style interstitials. If any of these show
 # up in a "successful" (200 OK) response, it's not a real page — it's a
@@ -78,8 +75,14 @@ class AnyjobokScraper(BaseScraper):
         results: list[RawJobPosting] = []
         seen_urls: set[str] = set()
 
+        # Build entrypoints: always include /jobs, plus one per keyword
+        keywords = get_enabled_search_keywords()
+        entrypoints = ["/jobs"] + [
+            f"/jobs?search={kw.replace(' ', '+')}" for kw in keywords
+        ]
+
         with self._get_client() as client:
-            for entrypoint in _ENTRYPOINTS:
+            for entrypoint in entrypoints:
                 base_url = f"{_BASE_URL}{entrypoint}"
 
                 if not self.robots_allowed(base_url):
@@ -87,7 +90,7 @@ class AnyjobokScraper(BaseScraper):
                     continue
 
                 for page in range(1, _MAX_PAGES_PER_ENTRYPOINT + 1):
-                    url = base_url if page == 1 else f"{base_url}?page={page}"
+                    url = base_url if page == 1 else f"{base_url}&page={page}"
 
                     try:
                         response = self._request_with_retry(

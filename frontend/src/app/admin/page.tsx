@@ -40,9 +40,9 @@ export default function AdminPage() {
 				/>
 			</section>
 
-			{/* Keyword config */}
+			{/* Unified keyword config */}
 			<section style={{ marginBottom: 28 }}>
-				<SectionLabel icon='🔑' title='Role Keywords' />
+				<SectionLabel icon='🔑' title='Keywords' />
 				<KeywordEditor />
 			</section>
 

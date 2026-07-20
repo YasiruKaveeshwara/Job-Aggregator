@@ -43,22 +43,13 @@ from urllib.parse import quote_plus
 from bs4 import BeautifulSoup
 
 from app.scrapers.base import BaseScraper, RawJobPosting
+from app.search_keywords import get_enabled_search_keywords
 
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://hire.lk"
 _SEARCH_URL = f"{_BASE_URL}/jobs?q={{query}}&location="
 _INDUSTRY_URL = f"{_BASE_URL}/jobs?industry=it-software-engineering-web-cloud"
-
-# Keywords to search one by one
-_QUERIES = [
-    "software engineer",
-    "web developer",
-    "frontend developer",
-    "backend developer",
-    "full stack developer",
-    "software intern",
-]
 
 _HEADERS = {
     "User-Agent": (
@@ -81,9 +72,11 @@ class HirelkScraper(BaseScraper):
         results: list[RawJobPosting] = []
         seen_ulids: set[str] = set()
 
+        keywords = get_enabled_search_keywords()
+
         with self._get_client() as client:
             # Keyword search passes
-            for query in _QUERIES:
+            for query in keywords:
                 url = _SEARCH_URL.format(query=quote_plus(query))
 
                 if not self.robots_allowed(url):

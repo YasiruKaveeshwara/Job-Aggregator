@@ -109,3 +109,16 @@ class Source(SQLModel, table=True):
     name: str = Field(unique=True)   # e.g. "itpro.lk"
     enabled: bool = True
     last_scraped_at: Optional[datetime] = None
+
+
+class SearchKeyword(SQLModel, table=True):
+    """
+    A search term used by scrapers to query job boards.
+
+    Seeded on first startup from the default list in db.py.
+    Editable via the admin portal keyword editor.
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    keyword: str = Field(unique=True, index=True)  # e.g. "software engineer"
+    enabled: bool = True

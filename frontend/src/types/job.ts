@@ -74,3 +74,9 @@ export interface ScrapeRun {
   site_results: Record<string, SiteResult>;
   progress: ScrapeProgress;
 }
+
+export interface SearchKeyword {
+  id: number;
+  keyword: string;
+  enabled: boolean;
+}
