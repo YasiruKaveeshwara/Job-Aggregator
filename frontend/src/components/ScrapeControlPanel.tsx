@@ -1,11 +1,12 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { startScrape, getScrapeStatus, getScrapeRuns } from "@/lib/api";
+import { startScrape, getScrapeStatus, getScrapeRuns, toggleSource } from "@/lib/api";
 import { useLiveRelativeTime } from "@/lib/datetime";
 import type { Source, ScrapeRun, SiteResult } from "@/types/job";
 
 interface Props {
 	sources: Source[];
+	onSourcesChange?: (sources: Source[]) => void;
 	onRunFinished?: () => void;
 }
 
@@ -23,9 +24,10 @@ const PLATFORM_COLORS: Record<string, string> = {
 	"hire.lk": "#3b82f6",
 };
 
-export default function ScrapeControlPanel({ sources, onRunFinished }: Props) {
+export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFinished }: Props) {
 	const [runState, setRunState] = useState<RunState>("idle");
 	const [currentRun, setCurrentRun] = useState<ScrapeRun | null>(null);
+	const [mergedResults, setMergedResults] = useState<Record<string, SiteResult>>({});
 	const [error, setError] = useState<string | null>(null);
 	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -45,6 +47,9 @@ export default function ScrapeControlPanel({ sources, onRunFinished }: Props) {
 				try {
 					const run = await getScrapeStatus(runId);
 					setCurrentRun(run);
+					if (run.site_results) {
+						setMergedResults((prev) => ({ ...prev, ...run.site_results }));
+					}
 					if (run.status === "COMPLETED") {
 						setRunState("done");
 						stopPolling();
@@ -69,6 +74,13 @@ export default function ScrapeControlPanel({ sources, onRunFinished }: Props) {
 		getScrapeRuns()
 			.then((runs) => {
 				if (cancelled) return;
+
+				const merged: Record<string, SiteResult> = {};
+				// Runs are newest-first. Iterate oldest-first to overwrite with newer results.
+				for (let i = runs.length - 1; i >= 0; i--) {
+					Object.assign(merged, runs[i].site_results);
+				}
+				setMergedResults(merged);
 
 				const latest = runs[0] ?? null;
 				setCurrentRun(latest);
@@ -135,20 +147,6 @@ export default function ScrapeControlPanel({ sources, onRunFinished }: Props) {
 						</>
 					:	"⚡ Start Fetching (All Sources)"}
 				</button>
-
-				{/* Per-source buttons */}
-				{sources
-					.filter((s) => s.enabled)
-					.map((src) => (
-						<button
-							key={src.name}
-							className='btn-ghost'
-							disabled={runState === "running"}
-							onClick={() => handleStart([src.name])}
-							style={{ fontSize: 12 }}>
-							↻ {src.name}
-						</button>
-					))}
 			</div>
 
 			{/* Error */}
@@ -168,7 +166,7 @@ export default function ScrapeControlPanel({ sources, onRunFinished }: Props) {
 			)}
 
 			{/* Status */}
-			{currentRun && (
+			{(currentRun || Object.keys(mergedResults).length > 0) && (
 				<div>
 					<div style={{ marginBottom: 10 }}>
 						<span
@@ -187,27 +185,41 @@ export default function ScrapeControlPanel({ sources, onRunFinished }: Props) {
 							gap: 8,
 							marginBottom: 12,
 						}}>
-						<StatusDot status={currentRun.status} />
+						<StatusDot status={currentRun?.status || "COMPLETED"} />
 						<span style={{ fontSize: 13, fontWeight: 600 }}>
-							{currentRun.status === "RUNNING" ?
+							{currentRun?.status === "RUNNING" ?
 								"Scraping in progress…"
-							: currentRun.status === "COMPLETED" ?
-								`Done — ${totalNew} new job${totalNew !== 1 ? "s" : ""} added`
-							:	"Run failed"}
+							: currentRun?.status === "FAILED" ?
+								"Run failed"
+							:	`Done — ${totalNew} new job${totalNew !== 1 ? "s" : ""} added`}
 						</span>
 					</div>
 
 					{/* Per-site breakdown */}
 					<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
 						{sources.map((src) => {
-							const result = currentRun.site_results[src.name];
+							const result = mergedResults[src.name];
+							// If a run is running and doesn't have a result for this site yet,
+							// but the site is part of the requested ones, we want to show it as "waiting".
+							// Since we don't have the explicit site list for the run, we use the fact that
+							// if it's running, we consider all enabled sites as running unless we want to be precise.
+							// But actually, just showing the last merged result is fine.
+							const siteResults = currentRun?.site_results || {};
+							const isThisRunActive = currentRun?.status === "RUNNING" && (!result || Object.keys(siteResults).includes(src.name) || Object.keys(siteResults).length === 0);
+							
 							return (
 								<SiteRow
 									key={src.name}
-									name={src.name}
+									source={src}
 									result={result}
 									color={PLATFORM_COLORS[src.name] ?? "#6b7280"}
-									running={currentRun.status === "RUNNING"}
+									running={currentRun?.status === "RUNNING" && isThisRunActive}
+									onToggle={async () => {
+										const updated = await toggleSource(src.name, !src.enabled);
+										onSourcesChange?.(sources.map((s) => (s.id === updated.id ? updated : s)));
+									}}
+									onRun={() => handleStart([src.name])}
+									runState={runState}
 								/>
 							);
 						})}
@@ -243,17 +255,24 @@ function StatusDot({ status }: { status: string }) {
 }
 
 function SiteRow({
-	name,
+	source,
 	result,
 	color,
 	running,
+	onToggle,
+	onRun,
+	runState,
 }: {
-	name: string;
+	source: Source;
 	result: SiteResult | undefined;
 	color: string;
 	running: boolean;
+	onToggle: () => void;
+	onRun: () => void;
+	runState: string;
 }) {
 	const done = !!result;
+	const relativeTime = useLiveRelativeTime(source.last_scraped_at);
 
 	return (
 		<div
@@ -261,7 +280,7 @@ function SiteRow({
 				background: "var(--bg-surface)",
 				border: "1px solid var(--border-subtle)",
 				borderRadius: 8,
-				padding: "10px 14px",
+				padding: "12px 14px",
 				display: "flex",
 				alignItems: "center",
 				gap: 12,
@@ -272,34 +291,53 @@ function SiteRow({
 					width: 8,
 					height: 8,
 					borderRadius: "50%",
-					background:
-						done ?
-							result?.error ?
-								"var(--red)"
-							:	"var(--green)"
-						:	color,
+					background: !source.enabled ? "var(--text-muted)" : (done ? (result?.error ? "var(--red)" : "var(--green)") : color),
 					flexShrink: 0,
-					opacity: done ? 1 : 0.5,
+					opacity: (done || !source.enabled) ? 1 : 0.5,
 				}}
 			/>
 
-			{/* Name */}
-			<span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{name}</span>
-
-			{/* Counts */}
-			{done && !result?.error ?
-				<div style={{ display: "flex", gap: 10, fontSize: 12 }}>
-					<Stat label='found' value={result!.found} />
-					<Stat label='new' value={result!.new} highlight />
-					<Stat label='dup' value={result!.duplicates} />
-				</div>
-			: done && result?.error ?
-				<span style={{ fontSize: 12, color: "var(--red)" }}>{result.error}</span>
-			: running ?
-				<span style={{ fontSize: 12, color: "var(--text-muted)" }} className='loading'>
-					Waiting…
+			{/* Name & Last Scraped */}
+			<div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+				<span style={{ fontSize: 13, fontWeight: 600 }}>
+					{source.name}
 				</span>
-			:	null}
+				<span style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+					{source.last_scraped_at ? `Last fetched ${new Date(source.last_scraped_at).toLocaleDateString()} (${relativeTime})` : "Never fetched"}
+				</span>
+			</div>
+
+			{/* Counts / Status */}
+			<div style={{ minWidth: 140, display: "flex", justifyContent: "flex-end" }}>
+				{done && !result?.error ?
+					<div style={{ display: "flex", gap: 10, fontSize: 12 }}>
+						<Stat label='found' value={result!.found} />
+						<Stat label='new' value={result!.new} highlight />
+						<Stat label='dup' value={result!.duplicates} />
+					</div>
+				: done && result?.error ?
+					<span style={{ fontSize: 12, color: "var(--red)" }}>{result.error}</span>
+				: running ?
+					<span style={{ fontSize: 12, color: "var(--text-muted)" }} className='loading'>
+						Waiting…
+					</span>
+				:	null}
+			</div>
+
+			{/* Actions (Toggle & Run) */}
+			<div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 12, borderLeft: "1px solid var(--border-subtle)" }}>
+				<button
+					className='btn-ghost'
+					disabled={runState === "running" || !source.enabled}
+					onClick={onRun}
+					style={{ fontSize: 12, padding: "4px 8px" }}>
+					↻
+				</button>
+				<label className='toggle'>
+					<input type='checkbox' checked={source.enabled} onChange={onToggle} disabled={runState === "running"} />
+					<span className='toggle-slider' />
+				</label>
+			</div>
 		</div>
 	);
 }

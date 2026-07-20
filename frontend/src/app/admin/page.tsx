@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { getSources } from "@/lib/api";
 import type { Source } from "@/types/job";
 import ScrapeControlPanel from "@/components/ScrapeControlPanel";
-import SourceToggleList from "@/components/SourceToggleList";
 import RunHistoryTable from "@/components/RunHistoryTable";
 import KeywordEditor from "@/components/KeywordEditor";
 
@@ -30,20 +29,15 @@ export default function AdminPage() {
 
 			{/* Scrape control */}
 			<section style={{ marginBottom: 28 }}>
-				<SectionLabel icon='🚀' title='Scrape Control' />
+				<SectionLabel icon='🔌' title='Sources & Scrape Control' />
 				<ScrapeControlPanel
 					sources={sources}
+					onSourcesChange={setSources}
 					onRunFinished={() => {
 						setHistoryRefreshKey((value) => value + 1);
 						loadSources();
 					}}
 				/>
-			</section>
-
-			{/* Source toggles */}
-			<section style={{ marginBottom: 28 }}>
-				<SectionLabel icon='🔌' title='Sources' />
-				<SourceToggleList sources={sources} onSourcesChange={setSources} />
 			</section>
 
 			{/* Keyword config */}
