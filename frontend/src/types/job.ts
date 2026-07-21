@@ -73,6 +73,14 @@ export interface ScrapeProgress {
   completed_sites: number;
   current_site: string | null;
   requested_sites: string[];
+  classifying: boolean;
+  classifying_count?: number;
+}
+
+export interface ClassifierResult {
+  kept: number;
+  removed: number;
+  skipped: number;
 }
 
 export interface ScrapeRun {

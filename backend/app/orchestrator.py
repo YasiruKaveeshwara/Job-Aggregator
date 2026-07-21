@@ -25,6 +25,7 @@ from app.dedup import dedup_and_insert
 from app.models import ScrapeRun, Source
 from app.normalize import normalize
 from app.scrapers.base import BaseScraper
+from app.classifier import classify_new_jobs
 
 # ── Scraper registry ─────────────────────────────────────────────────
 
@@ -132,9 +133,11 @@ def _execute_run(
         "completed_sites": 0,
         "current_site": site_names[0] if site_names else None,
         "requested_sites": site_names,
+        "classifying": False,
     })
 
-    # Process each site independently
+    # Process each site independently — collect IDs of newly inserted jobs
+    all_new_job_ids: list[int] = []
     completed = 0
     for i, site_name in enumerate(site_names):
         # Check for cancellation BEFORE starting each site
@@ -154,8 +157,30 @@ def _execute_run(
             "requested_sites": site_names,
         })
 
-        _process_site(run_id, site_name)
+        _process_site(run_id, site_name, all_new_job_ids)
         completed += 1
+
+    # ── Gemini classification ────────────────────────────────────────
+    # Run after ALL sites are done — classify all new jobs in one pass
+    if all_new_job_ids:
+        logger.info(
+            "[orchestrator] Run %d — classifying %d new jobs with Gemini",
+            run_id, len(all_new_job_ids),
+        )
+        _update_progress(run_id, {
+            "total_sites": len(site_names),
+            "completed_sites": completed,
+            "current_site": None,
+            "requested_sites": site_names,
+            "classifying": True,
+            "classifying_count": len(all_new_job_ids),
+        })
+        try:
+            classifier_stats = classify_new_jobs(all_new_job_ids)
+            logger.info("[orchestrator] Classifier: %s", classifier_stats)
+            _update_classifier_result(run_id, classifier_stats)
+        except Exception:
+            logger.exception("[orchestrator] Classifier failed — jobs kept as NEW")
 
     # Final progress update
     _update_progress(run_id, {
@@ -163,14 +188,18 @@ def _execute_run(
         "completed_sites": completed,
         "current_site": None,
         "requested_sites": site_names,
+        "classifying": False,
     })
 
     # Mark run as completed
     _mark_run_completed(run_id)
 
 
-def _process_site(run_id: int, site_name: str) -> None:
-    """Fetch, normalize, and dedup postings from a single site."""
+def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
+    """Fetch, normalize, and dedup postings from a single site.
+    
+    Appends IDs of newly inserted jobs to new_job_ids for later classification.
+    """
 
     # Check if site is enabled
     with Session(engine) as session:
@@ -234,9 +263,11 @@ def _process_site(run_id: int, site_name: str) -> None:
 
                     # Dedup + insert
                     try:
-                        result = dedup_and_insert(session, normalized)
-                        if result == "new":
+                        status, inserted_id = dedup_and_insert(session, normalized)
+                        if status == "new":
                             new_count += 1
+                            if inserted_id is not None and inserted_id not in new_job_ids:
+                                new_job_ids.append(inserted_id)
                         else:
                             dup_count += 1
                     except Exception:
@@ -303,6 +334,20 @@ def _update_site_result(
 
         session.add(run)
         session.commit()
+
+
+def _update_classifier_result(run_id: int, stats: dict) -> None:
+    """Store classifier stats in the ScrapeRun's site_results under '__classifier__' key."""
+    with Session(engine) as session:
+        run = session.get(ScrapeRun, run_id)
+        if run is None:
+            return
+        site_results = json.loads(run.site_results or "{}")
+        site_results["__classifier__"] = stats
+        run.site_results = json.dumps(site_results)
+        session.add(run)
+        session.commit()
+
 
 
 def _update_progress(run_id: int, progress: dict) -> None:

@@ -65,13 +65,13 @@ def _parse_date(raw: Optional[str]) -> Optional[datetime]:
 def dedup_and_insert(
     session: Session,
     posting: NormalizedPosting,
-) -> str:
+) -> tuple[str, Optional[int]]:
     """
     Insert a normalized posting into the DB with deduplication.
 
-    Returns one of:
-    - ``"new"``        -- a new Job row was created
-    - ``"duplicate"``  -- only a new JobSource row was added to an existing Job
+    Returns a tuple of (status, job_id):
+    - ``("new", job_id)``       -- a new Job row was created
+    - ``("duplicate", None)``   -- only a new JobSource row was added to an existing Job
     """
     job_hash = compute_job_hash(posting.company_name, posting.job_title)
     posted_date = _parse_date(posting.posted_date_raw)
@@ -99,7 +99,7 @@ def dedup_and_insert(
     if best_match is not None:
         # Same posting, different source -> add JobSource only
         _add_source(session, best_match.id, posting)
-        return "duplicate"
+        return ("duplicate", None)
 
     # ── New posting cycle (same role re-posted after window) ─────
     return _insert_new_job(session, posting, job_hash, posted_date)
@@ -134,7 +134,7 @@ def _insert_new_job(
     posting: NormalizedPosting,
     job_hash: str,
     posted_date: Optional[datetime],
-) -> str:
+) -> tuple[str, Optional[int]]:
     """Create a new Job row + its first JobSource row."""
     now = datetime.now(timezone.utc)
 
@@ -166,7 +166,7 @@ def _insert_new_job(
     )
     session.add(source)
 
-    return "new"
+    return ("new", job.id)
 
 
 def _add_source(

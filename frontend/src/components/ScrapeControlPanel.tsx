@@ -131,7 +131,12 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 		}
 	};
 
-	const totalNew = currentRun ? Object.values(currentRun.site_results).reduce((s, r) => s + r.new, 0) : 0;
+	const totalNew = currentRun
+		? Object.entries(currentRun.site_results)
+			.filter(([key]) => key !== "__classifier__")
+			.reduce((s, [, r]) => s + ("new" in r ? r.new : 0), 0)
+		: 0;
+	const classifierResult = currentRun?.site_results["__classifier__"] as { kept: number; removed: number; skipped: number } | undefined;
 	const lastFetchAt = currentRun?.finished_at ?? currentRun?.started_at ?? null;
 	const lastFetchLabel = useLiveRelativeTime(lastFetchAt);
 
@@ -140,6 +145,8 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 	const totalSites = progress?.total_sites ?? 0;
 	const completedSites = progress?.completed_sites ?? 0;
 	const currentSite = progress?.current_site ?? null;
+	const isClassifying = progress?.classifying ?? false;
+	const classifyingCount = progress?.classifying_count ?? 0;
 	const progressPercent = totalSites > 0 ? Math.round((completedSites / totalSites) * 100) : 0;
 
 	return (
@@ -196,9 +203,11 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 						<span style={{ color: "var(--text-secondary)" }}>
 							{cancelling
 								? "Stopping after current site…"
-								: currentSite
-									? <>Fetching <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{currentSite}</span></>
-									: "Starting…"}
+								: isClassifying
+									? <><span style={{ color: "var(--accent)", fontWeight: 600 }}>✦ Classifying {classifyingCount} jobs with AI…</span></>
+									: currentSite
+										? <>Fetching <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{currentSite}</span></>
+										: "Starting…"}
 						</span>
 						<span style={{ color: "var(--text-muted)" }}>
 							{completedSites}/{totalSites} sites ({progressPercent}%)
@@ -334,6 +343,31 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 								/>
 							);
 						})}
+
+						{/* AI Classifier result row */}
+						{classifierResult && (
+							<div style={{
+								display: "flex",
+								alignItems: "center",
+								gap: 8,
+								padding: "8px 10px",
+								borderRadius: 8,
+								background: "var(--bg-surface)",
+								border: "1px solid var(--border-subtle)",
+								marginTop: 4,
+							}}>
+								<span style={{ fontSize: 14 }}>✦</span>
+								<span style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", flex: 1 }}>
+									AI Relevance Filter
+								</span>
+								<span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+									<span style={{ color: "var(--green)" }}>✓ {classifierResult.kept} kept</span>
+									{" · "}
+									<span style={{ color: "var(--red)" }}>✕ {classifierResult.removed} removed</span>
+									{classifierResult.skipped > 0 && ` · ${classifierResult.skipped} unclassified`}
+								</span>
+							</div>
+						)}
 					</div>
 				</div>
 			)}

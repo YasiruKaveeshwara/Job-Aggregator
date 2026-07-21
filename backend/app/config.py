@@ -93,3 +93,8 @@ CORS_ORIGINS: list[str] = _getenv_list(
     ["http://localhost:3000", "http://127.0.0.1:3000"],
 )
 
+# ── Gemini AI classifier ───────────────────────────────────────────────
+# Empty string means classifier is disabled (jobs stay NEW)
+GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+GEMINI_BATCH_SIZE: int = _getenv_int("GEMINI_BATCH_SIZE", 200)
