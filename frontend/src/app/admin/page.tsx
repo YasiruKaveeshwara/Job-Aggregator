@@ -7,72 +7,129 @@ import RunHistoryTable from "@/components/RunHistoryTable";
 import KeywordEditor from "@/components/KeywordEditor";
 import SearchLocationEditor from "@/components/SearchLocationEditor";
 
-export default function AdminPage() {
-	const [sources, setSources] = useState<Source[]>([]);
-	const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+const SECTIONS = [
+  { id: "sources", label: "Sources & Scrape Control" },
+  { id: "keywords", label: "Keywords" },
+  { id: "locations", label: "Locations" },
+  { id: "history", label: "Run History" },
+];
 
-	const loadSources = () => {
-		getSources().then(setSources).catch(console.error);
-	};
-
-	useEffect(() => {
-		loadSources();
-	}, []);
-
-	return (
-		<div style={{ padding: "24px", maxWidth: 900, margin: "0 auto" }}>
-			<div style={{ marginBottom: 28 }}>
-				<h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Admin Portal</h1>
-				<p style={{ color: "var(--text-secondary)", fontSize: 13, marginTop: 4 }}>
-					Manually trigger scrape runs, manage sources, and configure keywords.
-				</p>
-			</div>
-
-			{/* Scrape control */}
-			<section style={{ marginBottom: 28 }}>
-				<SectionLabel icon='🔌' title='Sources & Scrape Control' />
-				<ScrapeControlPanel
-					sources={sources}
-					onSourcesChange={setSources}
-					onRunFinished={() => {
-						setHistoryRefreshKey((value) => value + 1);
-						loadSources();
-					}}
-				/>
-			</section>
-
-			{/* Unified keyword config */}
-			<section style={{ marginBottom: 28 }}>
-				<SectionLabel icon='🔑' title='Keywords' />
-				<KeywordEditor />
-			</section>
-
-			{/* Location preferences */}
-			<section style={{ marginBottom: 28 }}>
-				<SectionLabel icon='📍' title='Locations' />
-				<SearchLocationEditor />
-			</section>
-
-			{/* Run history */}
-			<section>
-				<SectionLabel icon='📋' title='Run History' />
-				<RunHistoryTable refreshKey={historyRefreshKey} />
-			</section>
-		</div>
-	);
+function SectionIcon({ id }: { id: string }) {
+  const icons: Record<string, React.ReactElement> = {
+    sources: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.25" />
+        <circle cx="8" cy="8" r="2.5" fill="currentColor" opacity="0.5" />
+      </svg>
+    ),
+    keywords: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+      </svg>
+    ),
+    locations: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M8 2a4 4 0 0 1 4 4c0 3-4 8-4 8S4 9 4 6a4 4 0 0 1 4-4z" stroke="currentColor" strokeWidth="1.25" />
+        <circle cx="8" cy="6" r="1.5" fill="currentColor" opacity="0.6" />
+      </svg>
+    ),
+    history: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.25" />
+        <path d="M8 5v3.5l2 1.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+      </svg>
+    ),
+  };
+  return icons[id] ?? null;
 }
 
-function SectionLabel({ icon, title }: { icon: string; title: string }) {
-	return (
-		<div
-			style={{
-				display: "flex",
-				alignItems: "center",
-				gap: 8,
-				marginBottom: 12,
-			}}>
-			<span style={{ fontSize: 16 }}>{icon}</span>
-			<h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{title}</h2>
-		</div>
-	);
+function SectionHeader({ id, title }: { id: string; title: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 14,
+        paddingBottom: 12,
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
+      <span
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: "var(--radius-sm)",
+          background: "var(--accent-dim)",
+          color: "var(--accent)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        <SectionIcon id={id} />
+      </span>
+      <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, letterSpacing: "-0.01em" }}>{title}</h2>
+    </div>
+  );
+}
+
+export default function AdminPage() {
+  const [sources, setSources] = useState<Source[]>([]);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+
+  const loadSources = () => {
+    getSources().then(setSources).catch(console.error);
+  };
+
+  useEffect(() => {
+    loadSources();
+  }, []);
+
+  return (
+    <div className="container" style={{ paddingTop: 28, paddingBottom: 48 }}>
+
+      {/* Page Header */}
+      <div style={{ marginBottom: 32 }}>
+        <h1 style={{ marginBottom: 6 }}>Admin Portal</h1>
+        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          Trigger scrape runs, manage sources, configure keywords and locations.
+        </p>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* Sources & Scrape Control */}
+        <section className="card" style={{ padding: "20px 24px" }}>
+          <SectionHeader id="sources" title="Sources & Scrape Control" />
+          <ScrapeControlPanel
+            sources={sources}
+            onSourcesChange={setSources}
+            onRunFinished={() => {
+              setHistoryRefreshKey((v) => v + 1);
+              loadSources();
+            }}
+          />
+        </section>
+
+        {/* Keywords */}
+        <section className="card" style={{ padding: "20px 24px" }}>
+          <SectionHeader id="keywords" title="Keywords" />
+          <KeywordEditor />
+        </section>
+
+        {/* Locations */}
+        <section className="card" style={{ padding: "20px 24px" }}>
+          <SectionHeader id="locations" title="Locations" />
+          <SearchLocationEditor />
+        </section>
+
+        {/* Run History */}
+        <section className="card" style={{ padding: "20px 24px" }}>
+          <SectionHeader id="history" title="Run History" />
+          <RunHistoryTable refreshKey={historyRefreshKey} />
+        </section>
+      </div>
+    </div>
+  );
 }

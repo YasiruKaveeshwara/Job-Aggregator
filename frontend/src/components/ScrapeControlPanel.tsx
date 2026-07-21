@@ -150,47 +150,48 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 	const progressPercent = totalSites > 0 ? Math.round((completedSites / totalSites) * 100) : 0;
 
 	return (
-		<div className='card' style={{ padding: 20 }}>
+		<div style={{ padding: 0 }}>
 			{/* Action buttons */}
 			<div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
 				<button
-					className='btn-primary'
+					className='btn btn-primary'
 					disabled={runState === "running"}
-					onClick={() => handleStart("all")}
-					style={{ display: "flex", alignItems: "center", gap: 6 }}>
-					{runState === "running" ?
+					onClick={() => handleStart("all")}>
+					{runState === "running" ? (
 						<>
 							<span
 								className='spin'
 								style={{
 									display: "inline-block",
-									width: 12,
-									height: 12,
+									width: 13,
+									height: 13,
 									border: "2px solid rgba(255,255,255,0.3)",
 									borderTopColor: "#fff",
 									borderRadius: "50%",
 								}}
 							/>
-							Running…
+							Running
 						</>
-					:	"⚡ Fetch All Sources"}
+					) : (
+						<>
+							<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+								<polygon points="2,2 12,7 2,12" fill="currentColor" />
+							</svg>
+							Fetch All Sources
+						</>
+					)}
 				</button>
 
 				{/* Stop button — only visible when running */}
 				{runState === "running" && (
 					<button
-						className='btn-ghost'
+						className='btn btn-danger'
 						disabled={cancelling}
-						onClick={handleCancel}
-						style={{
-							fontSize: 12,
-							color: "var(--red)",
-							borderColor: "var(--red)",
-							display: "flex",
-							alignItems: "center",
-							gap: 5,
-						}}>
-						{cancelling ? "Stopping…" : "⏹ Stop"}
+						onClick={handleCancel}>
+						<svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+							<rect x="2" y="2" width="8" height="8" rx="1" fill="currentColor" />
+						</svg>
+						{cancelling ? "Stopping..." : "Stop"}
 					</button>
 				)}
 			</div>
@@ -202,12 +203,12 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 					<div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
 						<span style={{ color: "var(--text-secondary)" }}>
 							{cancelling
-								? "Stopping after current site…"
-								: isClassifying
-									? <><span style={{ color: "var(--accent)", fontWeight: 600 }}>✦ Classifying {classifyingCount} jobs with AI…</span></>
-									: currentSite
-										? <>Fetching <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{currentSite}</span></>
-										: "Starting…"}
+							? "Stopping after current site..."
+							: isClassifying
+								? <><span style={{ color: "var(--accent)", fontWeight: 600 }}>Classifying {classifyingCount} jobs with AI...</span></>
+								: currentSite
+									? <>Fetching <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{currentSite}</span></>
+									: "Starting..."}
 						</span>
 						<span style={{ color: "var(--text-muted)" }}>
 							{completedSites}/{totalSites} sites ({progressPercent}%)
@@ -221,7 +222,7 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 							height: 8,
 							borderRadius: 4,
 							background: "var(--bg-surface)",
-							border: "1px solid var(--border-subtle)",
+							border: "1px solid var(--border)",
 							overflow: "hidden",
 						}}>
 						<div
@@ -251,12 +252,12 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 											padding: "2px 8px",
 											borderRadius: 10,
 											fontWeight: 600,
-											background: isDone ? "rgba(34,197,94,0.15)" : isCurrent ? "rgba(99,102,241,0.15)" : "var(--bg-surface)",
+											background: isDone ? "var(--green-bg)" : isCurrent ? "var(--accent-dim)" : "var(--bg-base)",
 											color: isDone ? "var(--green)" : isCurrent ? "var(--accent)" : "var(--text-muted)",
-											border: `1px solid ${isDone ? "rgba(34,197,94,0.3)" : isCurrent ? "rgba(99,102,241,0.3)" : "var(--border-subtle)"}`,
+											border: `1px solid ${isDone ? "var(--green-border)" : isCurrent ? "var(--accent-border)" : "var(--border)"}`,
 											...(isCurrent ? { animation: "pulse 1.5s ease-in-out infinite" } : {}),
 										}}>
-										{isDone ? "✓ " : isCurrent ? "● " : ""}{site}
+										{site}
 									</span>
 								);
 							})}
@@ -269,9 +270,9 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 			{error && (
 				<div
 					style={{
-						background: "#2d0a0a",
-						border: "1px solid var(--red)",
-						borderRadius: 8,
+						background: "var(--red-bg)",
+						border: "1px solid var(--red-border)",
+						borderRadius: "var(--radius)",
 						padding: "10px 14px",
 						fontSize: 13,
 						color: "var(--red)",
@@ -284,14 +285,14 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 			{/* Status */}
 			{(currentRun || Object.keys(mergedResults).length > 0) && (
 				<div>
-					<div style={{ marginBottom: 10 }}>
+					<div style={{ marginBottom: 12 }}>
 						<span
-							style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+							style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 500 }}>
 							Latest fetch results
 						</span>
 					</div>
-					<div style={{ marginBottom: 10, fontSize: 12, color: "var(--text-secondary)" }}>
-						Last all fetch:{" "}
+					<div style={{ marginBottom: 12, fontSize: 12, color: "var(--text-secondary)" }}>
+						Last fetch:{" "}
 						<span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{lastFetchLabel || "—"}</span>
 						{currentRun?.status === "CANCELLED" && (
 							<span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)", fontStyle: "italic" }}>
@@ -304,12 +305,12 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 							display: "flex",
 							alignItems: "center",
 							gap: 8,
-							marginBottom: 12,
+							marginBottom: 14,
 						}}>
 						<StatusDot status={currentRun?.status || "COMPLETED"} />
 						<span style={{ fontSize: 13, fontWeight: 600 }}>
 							{currentRun?.status === "RUNNING" ?
-								"Scraping in progress…"
+								"Scraping in progress..."
 							: currentRun?.status === "FAILED" ?
 								"Run failed"
 							: currentRun?.status === "CANCELLED" ?
@@ -350,20 +351,23 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 								display: "flex",
 								alignItems: "center",
 								gap: 8,
-								padding: "8px 10px",
-								borderRadius: 8,
-								background: "var(--bg-surface)",
-								border: "1px solid var(--border-subtle)",
-								marginTop: 4,
+								padding: "10px 12px",
+								borderRadius: "var(--radius)",
+								background: "var(--accent-dim)",
+								border: "1px solid var(--accent-border)",
+								marginTop: 6,
 							}}>
-								<span style={{ fontSize: 14 }}>✦</span>
+								<svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+									<circle cx="7" cy="7" r="6" stroke="var(--accent)" strokeWidth="1.25" />
+									<path d="M4.5 7l2 2 3-4" stroke="var(--accent)" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+								</svg>
 								<span style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", flex: 1 }}>
 									AI Relevance Filter
 								</span>
 								<span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-									<span style={{ color: "var(--green)" }}>✓ {classifierResult.kept} kept</span>
+									<span style={{ color: "var(--green)", fontWeight: 600 }}>{classifierResult.kept} kept</span>
 									{" · "}
-									<span style={{ color: "var(--red)" }}>✕ {classifierResult.removed} removed</span>
+									<span style={{ color: "var(--red)", fontWeight: 600 }}>{classifierResult.removed} removed</span>
 									{classifierResult.skipped > 0 && ` · ${classifierResult.skipped} unclassified`}
 								</span>
 							</div>
@@ -372,8 +376,8 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 				</div>
 			)}
 
-			{runState === "idle" && (
-				<p style={{ fontSize: 12, color: "var(--text-muted)" }}>Click a button above to start fetching jobs.</p>
+			{runState === "idle" && !currentRun && (
+				<p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>Click Fetch All Sources to start pulling jobs from your configured platforms.</p>
 			)}
 		</div>
 	);
@@ -425,14 +429,14 @@ function SiteRow({
 	return (
 		<div
 			style={{
-				background: isFetching ? "rgba(99,102,241,0.04)" : "var(--bg-surface)",
-				border: `1px solid ${isFetching ? "rgba(99,102,241,0.3)" : "var(--border-subtle)"}`,
-				borderRadius: 8,
+				background: isFetching ? "var(--accent-dim)" : "var(--bg-base)",
+				border: `1px solid ${isFetching ? "var(--accent-border)" : "var(--border)"}`,
+				borderRadius: "var(--radius)",
 				padding: "12px 14px",
 				display: "flex",
 				alignItems: "center",
 				gap: 12,
-				transition: "all 0.3s ease",
+				transition: "all 0.25s ease",
 			}}>
 			{/* Dot */}
 			<span
@@ -480,13 +484,16 @@ function SiteRow({
 			</div>
 
 			{/* Actions (Toggle & Run) */}
-			<div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 12, borderLeft: "1px solid var(--border-subtle)" }}>
+			<div style={{ display: "flex", alignItems: "center", gap: 10, paddingLeft: 12, borderLeft: "1px solid var(--border)" }}>
 				<button
-					className='btn-ghost'
+					className='btn btn-ghost btn-icon btn-sm'
 					disabled={runState === "running" || !source.enabled}
 					onClick={onRun}
-					style={{ fontSize: 12, padding: "4px 8px" }}>
-					↻
+					title={`Fetch ${source.name}`}>
+					<svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+						<path d="M11 6.5A4.5 4.5 0 1 1 6.5 2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+						<path d="M6.5 2l2-2M6.5 2l2 2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+					</svg>
 				</button>
 				<label className='toggle'>
 					<input type='checkbox' checked={source.enabled} onChange={onToggle} disabled={runState === "running"} />

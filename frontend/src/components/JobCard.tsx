@@ -4,218 +4,275 @@ import type { Job, ApplicationState } from "@/types/job";
 import { useLiveRelativeTime, formatLocalDateTimeFull } from "@/lib/datetime";
 
 interface JobCardProps {
-	job: Job;
-	onStateChange: (job: Job, newState: ApplicationState) => void;
-	onRemove: (job: Job) => void;
+  job: Job;
+  onStateChange: (job: Job, newState: ApplicationState) => void;
+  onRemove: (job: Job) => void;
 }
 
-function RelativeTimeLabel({ iso }: { iso: string | null }) {
-	const value = useLiveRelativeTime(iso);
-	return <span style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{value}</span>;
+function RelativeTime({ iso }: { iso: string | null }) {
+  const label = useLiveRelativeTime(iso);
+  return (
+    <span
+      title={iso ? `Posted: ${formatLocalDateTimeFull(iso)}` : undefined}
+      style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}
+    >
+      {label}
+    </span>
+  );
 }
 
-const PLATFORM_COLORS: Record<string, string> = {
-	"itpro.lk": "badge-indigo",
-	"anyjobok.com": "badge-green",
-	"governmentjob.lk": "badge-amber",
-	"jobenvoy.com": "badge-purple",
-	"rooster.jobs": "badge-cyan",
-	"topjobs.lk": "badge-red",
-	"xpress.jobs": "badge-neutral",
-	"findmyjob.lk": "badge-green",
-	"hire.lk": "badge-indigo",
+const PLATFORM_BADGE: Record<string, string> = {
+  "itpro.lk":         "badge-indigo",
+  "anyjobok.com":     "badge-green",
+  "governmentjob.lk": "badge-amber",
+  "jobenvoy.com":     "badge-purple",
+  "rooster.jobs":     "badge-cyan",
+  "topjobs.lk":       "badge-red",
+  "xpress.jobs":      "badge-neutral",
+  "findmyjob.lk":     "badge-blue",
+  "hire.lk":          "badge-indigo",
 };
 
+function CompanyAvatar({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
+  const [imgError, setImgError] = useState(false);
+  const initials = name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+
+  const hue = name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
+
+  return (
+    <div
+      style={{
+        width: 52,
+        height: 52,
+        flexShrink: 0,
+        borderRadius: "var(--radius)",
+        border: "1px solid var(--border)",
+        background: `hsl(${hue}, 60%, 96%)`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+        position: "relative",
+      }}
+    >
+      {imageUrl && !imgError ? (
+        <img
+          src={imageUrl}
+          alt={name}
+          onError={() => setImgError(true)}
+          style={{ width: "100%", height: "100%", objectFit: "contain", padding: 4 }}
+        />
+      ) : (
+        <span
+          style={{
+            fontSize: 15,
+            fontWeight: 700,
+            color: `hsl(${hue}, 50%, 40%)`,
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {initials || "J"}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function JobCard({ job, onStateChange, onRemove }: JobCardProps) {
-	const [expanded, setExpanded] = useState(false);
-	const isRemoved = job.application_state === "REMOVED";
+  const [expanded, setExpanded] = useState(false);
+  const isRemoved = job.application_state === "REMOVED";
+  const isApplied = job.application_state === "APPLIED";
 
-	const handleApplyToggle = () => {
-		if (isRemoved) return;
-		onStateChange(job, job.application_state === "APPLIED" ? "NEW" : "APPLIED");
-	};
+  return (
+    <article
+      className="card card-interactive fade-in"
+      style={{
+        padding: "18px 20px",
+        display: "flex",
+        gap: 16,
+        alignItems: "flex-start",
+        opacity: isRemoved ? 0.55 : 1,
+        transition: "opacity 0.2s ease, box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease",
+      }}
+    >
+      {/* Avatar */}
+      <CompanyAvatar name={job.company_name} imageUrl={job.image_url} />
 
-	const handleRemove = () => {
-		onRemove(job);
-	};
+      {/* Main Content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
 
-	const handleRestore = () => {
-		onStateChange(job, "NEW");
-	};
+        {/* Title row */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 12,
+            marginBottom: 4,
+          }}
+        >
+          <h3
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: "var(--text-primary)",
+              lineHeight: 1.35,
+              letterSpacing: "-0.01em",
+            }}
+          >
+            {job.job_title}
+          </h3>
+          <RelativeTime iso={job.posted_date ?? null} />
+        </div>
 
-	return (
-		<div
-			className='card card-hover'
-			style={{
-				padding: "16px",
-				cursor: "default",
-				display: "flex",
-				gap: "16px",
-				alignItems: "flex-start",
-				marginBottom: "12px",
-				opacity: isRemoved ? 0.5 : 1,
-				transition: "opacity 0.2s ease",
-			}}>
-			{/* Image */}
-			<div
-				style={{
-					width: 64,
-					height: 64,
-					flexShrink: 0,
-					borderRadius: 8,
-					background: "var(--bg-surface)",
-					border: "1px solid var(--border)",
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "center",
-					overflow: "hidden",
-				}}>
-				{job.image_url ?
-					<img
-						src={job.image_url}
-						alt={job.company_name}
-						style={{ width: "100%", height: "100%", objectFit: "contain" }}
-						onError={(e) => {
-							(e.target as HTMLImageElement).style.display = "none";
-							(e.target as HTMLImageElement).nextElementSibling?.removeAttribute("style");
-						}}
-					/>
-				:	null}
-				<div
-					style={{
-						display: job.image_url ? "none" : "block",
-						fontSize: 24,
-						color: "var(--text-muted)",
-					}}>
-					🏢
-				</div>
-			</div>
+        {/* Company & location */}
+        <p
+          style={{
+            fontSize: 13,
+            color: "var(--text-secondary)",
+            marginBottom: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            flexWrap: "wrap",
+          }}
+        >
+          <span style={{ fontWeight: 500 }}>{job.company_name}</span>
+          {job.location_normalized && (
+            <>
+              <span style={{ color: "var(--border-strong)" }}>·</span>
+              <span style={{ color: "var(--text-muted)" }}>
+                {job.location_normalized}
+              </span>
+            </>
+          )}
+        </p>
 
-			{/* Main content */}
-			<div style={{ flex: 1, minWidth: 0 }}>
-				{/* Title and date */}
-				<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-					<h3
-						style={{
-							fontWeight: 600,
-							fontSize: 16,
-							color: "var(--text-primary)",
-							lineHeight: 1.3,
-							margin: "0 0 4px",
-						}}>
-						{job.job_title}
-					</h3>
-					{job.posted_date && (
-						<span title={`Posted ${formatLocalDateTimeFull(job.posted_date)}`}>
-							<RelativeTimeLabel iso={job.posted_date} />
-						</span>
-					)}
-				</div>
+        {/* Badges */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+          {/* Role match */}
+          <span className="badge badge-indigo">{job.role_match}</span>
 
-				{/* Company + location */}
-				<p
-					style={{
-						fontSize: 14,
-						color: "var(--text-secondary)",
-						margin: "0 0 8px",
-					}}>
-					{job.company_name}
-					{job.location_normalized && (
-						<span style={{ color: "var(--text-muted)" }}>
-							{" · "}
-							{job.location_normalized}
-						</span>
-					)}
-				</p>
+          {/* Salary */}
+          {job.salary_disclosed && job.salary_min != null && (
+            <span className="badge badge-green">
+              LKR {job.salary_min.toLocaleString()}
+              {job.salary_max && job.salary_max !== job.salary_min
+                ? ` – ${job.salary_max.toLocaleString()}`
+                : ""}
+            </span>
+          )}
 
-				{/* Badges */}
-				<div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-					<span className='badge badge-indigo' style={{ fontSize: 11, padding: "4px 10px" }}>
-						{job.role_match}
-					</span>
-					{job.salary_disclosed && job.salary_min != null && (
-						<span className='badge badge-green' style={{ fontSize: 11, padding: "4px 10px" }}>
-							LKR {job.salary_min.toLocaleString()}
-							{job.salary_max && job.salary_max !== job.salary_min ? `–${job.salary_max.toLocaleString()}` : ""}
-						</span>
-					)}
-					{job.sources.map((s) => (
-						<a
-							key={s.id}
-							href={s.url}
-							target='_blank'
-							rel='noopener noreferrer'
-							className={`badge ${PLATFORM_COLORS[s.platform] ?? "badge-neutral"}`}
-							style={{ fontSize: 11, padding: "4px 10px", textDecoration: "none" }}>
-							↗ {s.platform}
-						</a>
-					))}
-				</div>
+          {/* Source links */}
+          {job.sources.map((s) => (
+            <a
+              key={s.id}
+              href={s.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`badge ${PLATFORM_BADGE[s.platform] ?? "badge-neutral"}`}
+              style={{ textDecoration: "none", cursor: "pointer" }}
+            >
+              {s.platform}
+            </a>
+          ))}
 
-				{/* Description toggle */}
-				{job.description_clean && (
-					<div style={{ marginTop: 8 }}>
-						<button
-							className='btn-ghost'
-							style={{ fontSize: 12, padding: "4px 8px" }}
-							onClick={() => setExpanded(!expanded)}>
-							{expanded ? "Hide description ▲" : "Read description ▼"}
-						</button>
-						{expanded && (
-							<p
-								style={{
-									fontSize: 13,
-									color: "var(--text-secondary)",
-									marginTop: 12,
-									marginBottom: 0,
-									lineHeight: 1.6,
-									maxHeight: 200,
-									overflowY: "auto",
-									padding: "12px",
-									background: "var(--bg-surface)",
-									borderRadius: 8,
-									border: "1px solid var(--border)",
-								}}>
-								{job.description_clean}
-							</p>
-						)}
-					</div>
-				)}
-			</div>
+          {/* Application state indicator */}
+          {isApplied && (
+            <span className="badge badge-state-applied">Applied</span>
+          )}
+          {isRemoved && (
+            <span className="badge badge-state-removed">Removed</span>
+          )}
+        </div>
 
-			{/* Actions */}
-			<div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, alignItems: "stretch" }}>
-				{isRemoved ? (
-					<button
-						className="btn-ghost"
-						onClick={handleRestore}
-						style={{ width: 100, fontSize: 12 }}>
-						↩ Restore
-					</button>
-				) : (
-					<button
-						className={job.application_state === "APPLIED" ? "btn-ghost" : "btn-primary"}
-						onClick={handleApplyToggle}
-						style={{ width: 100 }}>
-						{job.application_state === "APPLIED" ? "✓ Applied" : "Mark Applied"}
-					</button>
-				)}
-				<button
-					className="btn-ghost"
-					onClick={handleRemove}
-					title="Remove from dashboard"
-					style={{
-						width: 100,
-						fontSize: 12,
-						color: isRemoved ? "var(--text-muted)" : "var(--red, #ef4444)",
-						borderColor: isRemoved ? "var(--border)" : "transparent",
-						opacity: isRemoved ? 0.5 : 1,
-						cursor: isRemoved ? "default" : "pointer",
-					}}
-					disabled={isRemoved}>
-					✕ Remove
-				</button>
-			</div>
-		</div>
-	);
+        {/* Description toggle */}
+        {job.description_clean && (
+          <div>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ marginBottom: expanded ? 10 : 0 }}
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? "Hide description" : "View description"}
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+                style={{
+                  transition: "transform 0.2s",
+                  transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+              >
+                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+
+            {expanded && (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "var(--text-secondary)",
+                  lineHeight: 1.7,
+                  maxHeight: 220,
+                  overflowY: "auto",
+                  padding: "12px 14px",
+                  background: "var(--bg-base)",
+                  borderRadius: "var(--radius)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {job.description_clean}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Action buttons */}
+      <div
+        style={{
+          flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          alignItems: "stretch",
+          minWidth: 108,
+        }}
+      >
+        {isRemoved ? (
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => onStateChange(job, "NEW")}
+            style={{ width: "100%", justifyContent: "center" }}
+          >
+            Restore
+          </button>
+        ) : (
+          <button
+            className={`btn btn-sm ${isApplied ? "btn-success" : "btn-primary"}`}
+            onClick={() => onStateChange(job, isApplied ? "NEW" : "APPLIED")}
+            style={{ width: "100%", justifyContent: "center" }}
+          >
+            {isApplied ? "Applied" : "Mark Applied"}
+          </button>
+        )}
+
+        {!isRemoved && (
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={() => onRemove(job)}
+            style={{ width: "100%", justifyContent: "center" }}
+          >
+            Remove
+          </button>
+        )}
+      </div>
+    </article>
+  );
 }
