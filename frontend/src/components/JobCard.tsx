@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
 import type { Job, ApplicationState } from "@/types/job";
-import { useLiveRelativeTime } from "@/lib/datetime";
+import { useLiveRelativeTime, formatLocalDateTimeFull } from "@/lib/datetime";
 
 interface JobCardProps {
 	job: Job;
 	onStateChange: (job: Job, newState: ApplicationState) => void;
+	onRemove: (job: Job) => void;
 }
 
 function RelativeTimeLabel({ iso }: { iso: string | null }) {
@@ -25,11 +26,21 @@ const PLATFORM_COLORS: Record<string, string> = {
 	"hire.lk": "badge-indigo",
 };
 
-export default function JobCard({ job, onStateChange }: JobCardProps) {
+export default function JobCard({ job, onStateChange, onRemove }: JobCardProps) {
 	const [expanded, setExpanded] = useState(false);
+	const isRemoved = job.application_state === "REMOVED";
 
 	const handleApplyToggle = () => {
+		if (isRemoved) return;
 		onStateChange(job, job.application_state === "APPLIED" ? "NEW" : "APPLIED");
+	};
+
+	const handleRemove = () => {
+		onRemove(job);
+	};
+
+	const handleRestore = () => {
+		onStateChange(job, "NEW");
 	};
 
 	return (
@@ -42,6 +53,8 @@ export default function JobCard({ job, onStateChange }: JobCardProps) {
 				gap: "16px",
 				alignItems: "flex-start",
 				marginBottom: "12px",
+				opacity: isRemoved ? 0.5 : 1,
+				transition: "opacity 0.2s ease",
 			}}>
 			{/* Image */}
 			<div
@@ -93,7 +106,7 @@ export default function JobCard({ job, onStateChange }: JobCardProps) {
 						{job.job_title}
 					</h3>
 					{job.posted_date && (
-						<span title={`Posted ${new Date(job.posted_date).toLocaleString()}`}>
+						<span title={`Posted ${formatLocalDateTimeFull(job.posted_date)}`}>
 							<RelativeTimeLabel iso={job.posted_date} />
 						</span>
 					)}
@@ -170,13 +183,37 @@ export default function JobCard({ job, onStateChange }: JobCardProps) {
 				)}
 			</div>
 
-			{/* Action */}
-			<div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+			{/* Actions */}
+			<div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, alignItems: "stretch" }}>
+				{isRemoved ? (
+					<button
+						className="btn-ghost"
+						onClick={handleRestore}
+						style={{ width: 100, fontSize: 12 }}>
+						↩ Restore
+					</button>
+				) : (
+					<button
+						className={job.application_state === "APPLIED" ? "btn-ghost" : "btn-primary"}
+						onClick={handleApplyToggle}
+						style={{ width: 100 }}>
+						{job.application_state === "APPLIED" ? "✓ Applied" : "Mark Applied"}
+					</button>
+				)}
 				<button
-					className={job.application_state === "APPLIED" ? "btn-ghost" : "btn-primary"}
-					onClick={handleApplyToggle}
-					style={{ width: 100 }}>
-					{job.application_state === "APPLIED" ? "✓ Applied" : "Mark Applied"}
+					className="btn-ghost"
+					onClick={handleRemove}
+					title="Remove from dashboard"
+					style={{
+						width: 100,
+						fontSize: 12,
+						color: isRemoved ? "var(--text-muted)" : "var(--red, #ef4444)",
+						borderColor: isRemoved ? "var(--border)" : "transparent",
+						opacity: isRemoved ? 0.5 : 1,
+						cursor: isRemoved ? "default" : "pointer",
+					}}
+					disabled={isRemoved}>
+					✕ Remove
 				</button>
 			</div>
 		</div>

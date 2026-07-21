@@ -184,7 +184,7 @@ class JobenvoyScraper(BaseScraper):
             location_raw=location,
             salary_raw=None,
             description_raw=f"Job type: {job_type}" if job_type else "",
-            posted_date_raw=time_left,  # "🕒 12 days left" — normalize.py handles
+            posted_date_raw=None,  # time_left is "🕒 12 days left" (expiry), not a posted date
             source_url=source_url,
             image_url=image_url,
         )

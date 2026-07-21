@@ -37,18 +37,25 @@ def compute_job_hash(company: str, title: str) -> str:
     return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
-# ── Date parsing helper ──────────────────────────────────────────────
+# Sri Lanka Standard Time: UTC+5:30
+_SL_TZ = timezone(timedelta(hours=5, minutes=30))
+
 
 def _parse_date(raw: Optional[str]) -> Optional[datetime]:
-    """Best-effort parse of a raw date string into a UTC datetime."""
+    """Best-effort parse of a raw date string into a UTC datetime.
+
+    Naive datetimes (no timezone info) are assumed to be Sri Lanka time
+    (UTC+5:30) since all scraped sites are Sri Lankan job boards.
+    """
     if not raw:
         return None
     try:
         dt = dateutil_parser.parse(raw, fuzzy=True)
-        # Make timezone-aware if it isn't already
+        # If timezone-naive, assume Sri Lanka time and convert to UTC
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
+            dt = dt.replace(tzinfo=_SL_TZ)
+        # Convert to UTC for consistent storage
+        return dt.astimezone(timezone.utc)
     except (ValueError, OverflowError):
         return None
 

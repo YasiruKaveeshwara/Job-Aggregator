@@ -1,7 +1,7 @@
 """
 Job listing endpoints.
 
-GET  /api/jobs       -- list jobs (with optional filters)
+GET  /api/jobs       -- list jobs (with optional filters + pagination)
 PATCH /api/jobs/{id} -- update a job's application_state
 """
 
@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlmodel import Session, col, select
+from sqlmodel import Session, col, select, func
 
 from app.db import get_session
 from app.models import Job, JobSource
@@ -50,17 +50,28 @@ class JobOut(BaseModel):
     sources: list[JobSourceOut]
 
 
+class JobsPageOut(BaseModel):
+    """Paginated job list response."""
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    jobs: list[JobOut]
+
+
 class JobStateUpdate(BaseModel):
     """Body for PATCH /api/jobs/{id}."""
     application_state: str
 
 
-_VALID_STATES = {"NEW", "APPLIED"}
+_VALID_STATES = {"NEW", "APPLIED", "REMOVED"}
+
+_PAGE_SIZE = 30
 
 
 # ── Endpoints ────────────────────────────────────────────────────────
 
-@router.get("", response_model=list[JobOut])
+@router.get("", response_model=JobsPageOut)
 def list_jobs(
     state: Optional[str] = Query(None, description="Filter by application_state"),
     source: Optional[str] = Query(None, description="Filter by source platform"),
@@ -68,13 +79,24 @@ def list_jobs(
     q: Optional[str] = Query(None, description="Free-text search (title + company)"),
     date_from: Optional[str] = Query(None, description="Filter: posted on or after (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="Filter: posted on or before (YYYY-MM-DD)"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(_PAGE_SIZE, ge=1, le=200, description="Jobs per page"),
     session: Session = Depends(get_session),
 ):
-    """List all jobs, with optional filters."""
+    """List jobs with optional filters and pagination. Newest first by default.
+
+    REMOVED jobs are excluded unless state=REMOVED is explicitly requested.
+    """
     statement = select(Job)
 
+    # By default exclude REMOVED; only show them when explicitly requested
     if state:
+        if state not in _VALID_STATES:
+            raise HTTPException(status_code=422, detail=f"Invalid state '{state}'")
         statement = statement.where(Job.application_state == state)
+    else:
+        statement = statement.where(Job.application_state != "REMOVED")
+
     if role_match:
         statement = statement.where(Job.role_match == role_match)
     if q:
@@ -92,34 +114,45 @@ def list_jobs(
     if date_to:
         try:
             dt_to = datetime.fromisoformat(date_to)
-            # include the full end day
             statement = statement.where(col(Job.posted_date) <= dt_to)
         except ValueError:
             pass
 
     # Order by most recent posted_date first, then created_at
     statement = statement.order_by(
-        col(Job.posted_date).desc(),
+        col(Job.posted_date).desc().nulls_last(),
         col(Job.created_at).desc(),
     )
-    jobs = session.exec(statement).all()
+    all_jobs = session.exec(statement).all()
 
-    # If filtering by source, we need to check JobSource
+    # If filtering by source, filter in Python (avoids complex subquery)
     if source:
-        source_job_ids = set()
+        source_job_ids: set[int] = set()
         src_stmt = select(JobSource.job_id).where(JobSource.platform == source)
         for row in session.exec(src_stmt).all():
             source_job_ids.add(row)
-        jobs = [j for j in jobs if j.id in source_job_ids]
+        all_jobs = [j for j in all_jobs if j.id in source_job_ids]
 
-    # Attach sources to each job
+    total = len(all_jobs)
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    page = min(page, total_pages)
+    offset = (page - 1) * page_size
+    page_jobs = all_jobs[offset : offset + page_size]
+
+    # Attach sources to each job on this page only
     result: list[JobOut] = []
-    for job in jobs:
+    for job in page_jobs:
         src_stmt = select(JobSource).where(JobSource.job_id == job.id)
         sources = session.exec(src_stmt).all()
         result.append(_job_to_out(job, sources))
 
-    return result
+    return JobsPageOut(
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+        jobs=result,
+    )
 
 
 @router.patch("/{job_id}", response_model=JobOut)
@@ -128,7 +161,7 @@ def update_job_state(
     body: JobStateUpdate,
     session: Session = Depends(get_session),
 ):
-    """Update a job's application_state (e.g. DISCOVERED -> APPLIED)."""
+    """Update a job's application_state (NEW | APPLIED | REMOVED)."""
     if body.application_state not in _VALID_STATES:
         raise HTTPException(
             status_code=422,

@@ -17,7 +17,7 @@ interface FilterBarProps {
   onDateToChange: (v: string) => void;
 }
 
-const STATES = ["NEW", "APPLIED"];
+const STATES = ["NEW", "APPLIED", "REMOVED"];
 
 export default function FilterBar({
   sources, roleOptions,

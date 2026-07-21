@@ -171,8 +171,8 @@ class XpressjobsScraper(BaseScraper):
             elif job_type:
                 description = job_type
 
-            # Expiry date as the "posted" reference (best we have from this API)
-            expiry_date: Optional[str] = item.get("expiryDateOnWebsite")
+            # Posted date — use the sorted create date, NOT the expiry date
+            posted_date: Optional[str] = item.get("sortedCreateDate")
 
             # Company logo
             logo_uri: Optional[str] = item.get("logoUri")
@@ -185,7 +185,7 @@ class XpressjobsScraper(BaseScraper):
                 location_raw=location,
                 salary_raw=None,
                 description_raw=description,
-                posted_date_raw=expiry_date,  # closest field available; normalize.py handles it
+                posted_date_raw=posted_date,
                 source_url=source_url,
                 image_url=logo_uri,
             )

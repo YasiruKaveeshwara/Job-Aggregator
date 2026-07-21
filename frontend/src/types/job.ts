@@ -4,12 +4,22 @@
 
 export type ApplicationState =
   | "NEW"
-  | "APPLIED";
+  | "APPLIED"
+  | "REMOVED";
 
 export const APPLICATION_STATES: ApplicationState[] = [
   "NEW",
   "APPLIED",
+  "REMOVED",
 ];
+
+export interface JobsPage {
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  jobs: Job[];
+}
 
 export interface JobSource {
   id: number;

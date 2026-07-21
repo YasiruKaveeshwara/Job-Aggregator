@@ -179,8 +179,11 @@ class HirelkScraper(BaseScraper):
         desc_parts = [p for p in [emp_type, workplace, snippet] if p]
         description = " | ".join(desc_parts[:2]) + (" — " + snippet if snippet else "")
 
-        # Expiry date as the only date available from this endpoint
-        expires = data.get("expires_at_formatted")  # e.g. "July 30, 2026"
+        # Posted date — use the human-readable relative time
+        # e.g. "18 hours ago", "2 days ago", "1 week ago"
+        # Convert to an approximate ISO datetime
+        posted_at_human = data.get("posted_at_human") or ""
+        posted_date_raw = self._parse_relative_time(posted_at_human)
 
         detail_url = data.get("detail_url") or ""
         logo_url = data.get("company_logo_url")
@@ -191,7 +194,44 @@ class HirelkScraper(BaseScraper):
             location_raw=location_raw,
             salary_raw=None,
             description_raw=description,
-            posted_date_raw=expires,
+            posted_date_raw=posted_date_raw,
             source_url=detail_url,
             image_url=logo_url,
         )
+
+    @staticmethod
+    def _parse_relative_time(text: str) -> Optional[str]:
+        """Convert 'X hours/days/weeks ago' into an ISO datetime string."""
+        import re
+        from datetime import datetime, timedelta, timezone
+
+        if not text:
+            return None
+
+        text = text.lower().strip()
+        match = re.search(r"(\d+)\s*(second|minute|hour|day|week|month|year)s?\s*(?:ago|from now)", text)
+        if not match:
+            return None
+
+        amount = int(match.group(1))
+        unit = match.group(2)
+
+        multipliers = {
+            "second": 1,
+            "minute": 60,
+            "hour": 3600,
+            "day": 86400,
+            "week": 604800,
+            "month": 2592000,  # ~30 days
+            "year": 31536000,  # ~365 days
+        }
+
+        seconds = amount * multipliers.get(unit, 0)
+        if "ago" in text:
+            dt = datetime.now(timezone.utc) - timedelta(seconds=seconds)
+        else:
+            # "from now" means future — not a posted date, skip
+            return None
+
+        return dt.isoformat()
+
