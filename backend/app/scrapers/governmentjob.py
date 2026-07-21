@@ -20,28 +20,20 @@ from urllib.parse import quote_plus
 from bs4 import BeautifulSoup
 
 from app.scrapers.base import BaseScraper, RawJobPosting
+from app.search_keywords import get_enabled_search_keywords
+from app.config import SCRAPER_MAX_PAGES
 
 logger = logging.getLogger(__name__)
 
-# Keywords to search one by one — mirrors config.py ROLE_KEYWORDS_INCLUDE
-_SEARCH_QUERIES = [
-    "software engineer",
-    "web developer",
-    "frontend developer",
-    "backend developer",
-    "full stack developer",
-    "software intern",
-]
 _SEARCH_URL = "https://governmentjob.lk/?s={query}&post_type=job_listing"
 _SEARCH_PAGE_URL = (
     "https://governmentjob.lk/page/{page}/?s={query}&post_type=job_listing"
 )
-_MAX_SEARCH_PAGES = 13
 
 # WP REST API endpoint — category 15 = "Government Job Vacancies"
 _WP_API_URL = "https://governmentjob.lk/wp-json/wp/v2/posts"
 _WP_CATEGORY_ID = 15  # "government-job-vacancies"
-_WP_PER_PAGE = 50
+
 
 # HTML fallback
 _HTML_URL = "https://governmentjob.lk/government-job-vacancies/"
@@ -99,9 +91,10 @@ class GovernmentjobScraper(BaseScraper):
                         viewport={"width": 1440, "height": 1200},
                     )
 
-                    for query in _SEARCH_QUERIES:
+                    search_queries = get_enabled_search_keywords()
+                    for query in search_queries:
                         query_encoded = quote_plus(query)
-                        for page_num in range(1, _MAX_SEARCH_PAGES + 1):
+                        for page_num in range(1, SCRAPER_MAX_PAGES + 1):
                             url = (
                                 _SEARCH_URL.format(query=query_encoded)
                                 if page_num == 1
@@ -177,7 +170,7 @@ class GovernmentjobScraper(BaseScraper):
 
     def _fetch_via_api(self) -> list[RawJobPosting]:
         """Fetch posts from WP REST API."""
-        url = f"{_WP_API_URL}?categories={_WP_CATEGORY_ID}&per_page={_WP_PER_PAGE}"
+        url = f"{_WP_API_URL}?categories={_WP_CATEGORY_ID}&per_page={SCRAPER_PAGE_SIZE}"
 
         if not self.robots_allowed(url):
             return []

@@ -26,11 +26,12 @@ import httpx
 
 from app.scrapers.base import BaseScraper, RawJobPosting
 from app.search_keywords import get_enabled_search_keywords
+from app.config import SCRAPER_MAX_PAGES
 
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://anyjobok.com"
-_MAX_PAGES_PER_ENTRYPOINT = 10
+
 
 # Telltale strings from Cloudflare-style interstitials. If any of these show
 # up in a "successful" (200 OK) response, it's not a real page — it's a
@@ -89,7 +90,7 @@ class AnyjobokScraper(BaseScraper):
                     logger.warning("robots.txt disallows %s — skipping", base_url)
                     continue
 
-                for page in range(1, _MAX_PAGES_PER_ENTRYPOINT + 1):
+                for page in range(1, SCRAPER_MAX_PAGES + 1):
                     url = base_url if page == 1 else f"{base_url}&page={page}"
 
                     try:
@@ -273,3 +274,4 @@ class AnyjobokScraper(BaseScraper):
             source_url=source_url,
             image_url=image_url,
         )
+

@@ -35,14 +35,14 @@ from bs4 import BeautifulSoup
 
 from app.scrapers.base import BaseScraper, RawJobPosting
 from app.search_keywords import get_enabled_search_keywords
+from app.config import SCRAPER_MAX_PAGES, SCRAPER_PAGE_SIZE
 
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://findmyjob.lk"
 _API_URL = f"{_BASE_URL}/wp-json/wp/v2/awsm_job_openings"
 
-_PER_PAGE = 20
-_MAX_PAGES_PER_QUERY = 10  # cap at 200 results per keyword
+
 
 _CATEGORY_SOFTWARE = "software-development-web-qa-data-gis"
 
@@ -102,9 +102,9 @@ class FindmyjobScraper(BaseScraper):
         """Paginate through results for a single keyword or category. Returns number of new jobs added."""
         new_count = 0
 
-        for page in range(1, _MAX_PAGES_PER_QUERY + 1):
+        for page in range(1, SCRAPER_MAX_PAGES + 1):
             params = {
-                "per_page": _PER_PAGE,
+                "per_page": SCRAPER_PAGE_SIZE,
                 "page": page,
                 "_fields": "id,title,content,excerpt,link,date",
             }
@@ -145,7 +145,7 @@ class FindmyjobScraper(BaseScraper):
             )
 
             # If fewer than a full page returned, we've reached the end
-            if len(items) < _PER_PAGE:
+            if len(items) < SCRAPER_PAGE_SIZE:
                 break
 
         return new_count
@@ -229,3 +229,4 @@ class FindmyjobScraper(BaseScraper):
                         return sentence[:120]  # cap length
 
         return ""
+

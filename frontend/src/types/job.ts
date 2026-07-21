@@ -80,3 +80,9 @@ export interface SearchKeyword {
   keyword: string;
   enabled: boolean;
 }
+
+export interface SearchLocation {
+  id: number;
+  location: string;
+  enabled: boolean;
+}

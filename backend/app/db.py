@@ -23,6 +23,9 @@ _DEFAULT_SEARCH_KEYWORDS: list[str] = [
     "backend developer",
     "full stack developer",
     "software intern",
+    "intern",
+    "internship",
+    "trainee",
     "data engineer",
     "QA engineer",
     "devops engineer",
@@ -31,12 +34,40 @@ _DEFAULT_SEARCH_KEYWORDS: list[str] = [
     "software developer",
 ]
 
+# ── Default search locations (seeded once into the DB) ─────────────────
+# All 25 Sri Lankan districts + country-level + work-type modifiers
+_DEFAULT_SEARCH_LOCATIONS: list[str] = [
+    # Country
+    "sri lanka",
+    # Western Province
+    "colombo", "gampaha", "kalutara",
+    # Central Province
+    "kandy", "matale", "nuwara eliya",
+    # Southern Province
+    "galle", "matara", "hambantota",
+    # Northern Province
+    "jaffna", "kilinochchi", "mannar", "mullaitivu", "vavuniya",
+    # Eastern Province
+    "batticaloa", "ampara", "trincomalee",
+    # North Western Province
+    "kurunegala", "puttalam",
+    # North Central Province
+    "anuradhapura", "polonnaruwa",
+    # Uva Province
+    "badulla", "monaragala",
+    # Sabaragamuwa Province
+    "ratnapura", "kegalle",
+    # Work type
+    "remote", "onsite", "hybrid",
+]
+
 
 def create_db_and_tables() -> None:
     """Create all tables defined by SQLModel subclasses (if they don't exist)."""
     SQLModel.metadata.create_all(engine)
     _run_migrations()
     _seed_search_keywords()
+    _seed_search_locations()
 
 
 def _run_migrations() -> None:
@@ -93,6 +124,21 @@ def _seed_search_keywords() -> None:
         _logger.info("Seeded %d default search keywords", len(_DEFAULT_SEARCH_KEYWORDS))
 
 
+def _seed_search_locations() -> None:
+    """Insert default search locations if the table is empty."""
+    from app.models import SearchLocation
+
+    with Session(engine) as session:
+        existing = session.exec(select(SearchLocation)).first()
+        if existing is not None:
+            return  # already seeded
+
+        for loc in _DEFAULT_SEARCH_LOCATIONS:
+            session.add(SearchLocation(location=loc, enabled=True))
+        session.commit()
+        _logger.info("Seeded %d default search locations", len(_DEFAULT_SEARCH_LOCATIONS))
+
+
 def get_session():
     """
     FastAPI dependency that yields a database session.
@@ -105,3 +151,4 @@ def get_session():
     """
     with Session(engine) as session:
         yield session
+

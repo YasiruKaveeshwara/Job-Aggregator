@@ -122,3 +122,18 @@ class SearchKeyword(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     keyword: str = Field(unique=True, index=True)  # e.g. "software engineer"
     enabled: bool = True
+
+
+class SearchLocation(SQLModel, table=True):
+    """
+    A location used for filtering scraped job results.
+
+    Some scrapers use these as API parameters (xpressjobs, hire.lk),
+    others use them for client-side filtering (rooster.jobs).
+    Seeded on first startup; editable via the admin portal.
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    location: str = Field(unique=True, index=True)  # e.g. "colombo", "remote"
+    enabled: bool = True
+

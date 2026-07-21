@@ -1,5 +1,5 @@
 """
-Keyword configuration endpoints.
+Keyword and Location configuration endpoints.
 
 All keywords are stored in the ``SearchKeyword`` DB table and serve
 a dual purpose:
@@ -7,10 +7,18 @@ a dual purpose:
   2. normalize.py uses them as the inclusion filter when deciding
      whether a scraped posting is relevant.
 
+Locations are stored in the ``SearchLocation`` DB table and used by
+scrapers that support location filtering (rooster, xpressjobs, hirelk).
+
 GET    /api/keywords/search              -- list all keywords
 POST   /api/keywords/search              -- add a new keyword
 PATCH  /api/keywords/search/{id}         -- toggle enabled / rename
 DELETE /api/keywords/search/{id}         -- delete permanently
+
+GET    /api/keywords/locations            -- list all locations
+POST   /api/keywords/locations            -- add a new location
+PATCH  /api/keywords/locations/{id}       -- toggle enabled / rename
+DELETE /api/keywords/locations/{id}       -- delete permanently
 
 ── Exclude list (optional, rarely changed) ──────────────────────────────
 GET  /api/keywords/exclude               -- get exclusion keywords
@@ -28,7 +36,7 @@ from sqlmodel import Session, select
 
 import app.config as config
 from app.db import get_session
-from app.models import SearchKeyword
+from app.models import SearchKeyword, SearchLocation
 
 router = APIRouter(prefix="/api/keywords", tags=["keywords"])
 logger = logging.getLogger(__name__)
@@ -55,6 +63,21 @@ class SearchKeywordPatch(BaseModel):
 
 class ExcludeConfig(BaseModel):
     exclude: list[str]
+
+
+class SearchLocationOut(BaseModel):
+    id: int
+    location: str
+    enabled: bool
+
+
+class SearchLocationCreate(BaseModel):
+    location: str
+
+
+class SearchLocationPatch(BaseModel):
+    enabled: Optional[bool] = None
+    location: Optional[str] = None
 
 
 # ── Lifecycle helpers ─────────────────────────────────────────────────
@@ -157,9 +180,71 @@ def update_exclude(body: ExcludeConfig):
 def get_keywords_compat():
     return {
         "include": [],
-        "intern_modifiers": config.ROLE_KEYWORDS_INTERN_MODIFIER,
+        "intern_modifiers": [],
         "exclude": config.ROLE_KEYWORDS_EXCLUDE,
     }
+
+
+# ── Location endpoints ────────────────────────────────────────────────
+
+@router.get("/locations", response_model=list[SearchLocationOut])
+def list_locations(session: Session = Depends(get_session)):
+    """Return all locations (enabled and disabled), sorted alphabetically."""
+    rows = session.exec(select(SearchLocation).order_by(SearchLocation.location)).all()
+    return [SearchLocationOut(id=r.id, location=r.location, enabled=r.enabled) for r in rows]
+
+
+@router.post("/locations", response_model=SearchLocationOut)
+def add_location(body: SearchLocationCreate, session: Session = Depends(get_session)):
+    """Add a new location."""
+    location = body.location.strip().lower()
+    if not location:
+        raise HTTPException(status_code=400, detail="Location cannot be empty")
+
+    existing = session.exec(
+        select(SearchLocation).where(SearchLocation.location == location)
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Location '{location}' already exists")
+
+    row = SearchLocation(location=location, enabled=True)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return SearchLocationOut(id=row.id, location=row.location, enabled=row.enabled)
+
+
+@router.patch("/locations/{location_id}", response_model=SearchLocationOut)
+def patch_location(
+    location_id: int,
+    body: SearchLocationPatch,
+    session: Session = Depends(get_session),
+):
+    """Toggle a location's enabled state or rename it."""
+    row = session.get(SearchLocation, location_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Location {location_id} not found")
+
+    if body.enabled is not None:
+        row.enabled = body.enabled
+    if body.location is not None:
+        row.location = body.location.strip().lower()
+
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return SearchLocationOut(id=row.id, location=row.location, enabled=row.enabled)
+
+
+@router.delete("/locations/{location_id}")
+def delete_location(location_id: int, session: Session = Depends(get_session)):
+    """Delete a location permanently."""
+    row = session.get(SearchLocation, location_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Location {location_id} not found")
+    session.delete(row)
+    session.commit()
+    return {"detail": f"Deleted location '{row.location}'"}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────

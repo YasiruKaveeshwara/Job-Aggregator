@@ -21,6 +21,7 @@ from pydantic import BaseModel
 
 from app.config import (
     DEFAULT_RATE_LIMIT_SECONDS,
+    HTTP_TIMEOUT_SECONDS,
     MAX_RETRIES,
     RETRY_BACKOFF_FACTOR,
     USER_AGENT,
@@ -129,7 +130,7 @@ class BaseScraper(ABC):
         return httpx.Client(
             headers={"User-Agent": USER_AGENT},
             follow_redirects=True,
-            timeout=30.0,
+            timeout=HTTP_TIMEOUT_SECONDS,
         )
 
     # ── Robots.txt ───────────────────────────────────────────────────

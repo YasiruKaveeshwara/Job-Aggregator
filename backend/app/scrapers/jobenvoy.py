@@ -32,12 +32,13 @@ from bs4 import BeautifulSoup, Tag
 
 from app.scrapers.base import BaseScraper, RawJobPosting
 from app.search_keywords import get_enabled_search_keywords
+from app.config import SCRAPER_MAX_PAGES
 
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://jobenvoy.com"
 _SEARCH_URL_TEMPLATE = f"{_BASE_URL}/jobs?q={{query}}&country=LK"
-_MAX_PAGES = 10
+
 
 
 
@@ -62,7 +63,7 @@ class JobenvoyScraper(BaseScraper):
                 start_url = _SEARCH_URL_TEMPLATE.format(query=query_slug)
                 next_url: Optional[str] = start_url
 
-                for page_num in range(1, _MAX_PAGES + 1):
+                for page_num in range(1, SCRAPER_MAX_PAGES + 1):
                     if not next_url:
                         break
 
@@ -187,3 +188,4 @@ class JobenvoyScraper(BaseScraper):
             source_url=source_url,
             image_url=image_url,
         )
+

@@ -33,6 +33,8 @@ from typing import Any, Optional
 
 from app.scrapers.base import BaseScraper, RawJobPosting
 from app.search_keywords import get_enabled_search_keywords
+from app.search_locations import get_enabled_search_locations
+from app.config import SCRAPER_MAX_PAGES, SCRAPER_PAGE_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -42,15 +44,8 @@ _JOB_URL_TEMPLATE = "https://rooster.jobs/jobs/{job_id}"
 # Queries to run — each maps to one or more role keywords we care about.
 # Using broader terms intentionally so we catch most variants, then
 # normalize.py's role-keyword filter handles precision.
-_PAGE_LIMIT = 20          # max items per page (API default)
-_MAX_PAGES_PER_QUERY = 10  # cap at 200 results per query term
 
-# Keep only jobs in Sri Lanka to avoid flooding with overseas roles
-_LOCATION_KEYWORDS = ["sri lanka", "colombo", "kandy", "galle", "jaffna",
-                       "negombo", "matara", "kurunegala", "ratnapura",
-                       "badulla", "trincomalee", "batticaloa", "anuradhapura",
-                       "polonnaruwa", "nugegoda", "dehiwala", "moratuwa",
-                       "kelaniya", "malabe"]
+
 
 
 class RoosterScraper(BaseScraper):
@@ -93,10 +88,10 @@ class RoosterScraper(BaseScraper):
         """Paginate through results for a single query term."""
         postings: list[RawJobPosting] = []
 
-        for page in range(1, _MAX_PAGES_PER_QUERY + 1):
+        for page in range(1, SCRAPER_MAX_PAGES + 1):
             payload = {
                 "query": query_terms,
-                "limit": _PAGE_LIMIT,
+                "limit": SCRAPER_PAGE_SIZE,
                 "page": page,
                 "filters": {},
             }
@@ -147,7 +142,7 @@ class RoosterScraper(BaseScraper):
             )
 
             # If fewer than a full page returned, we've reached the end
-            if len(items) < _PAGE_LIMIT:
+            if len(items) < SCRAPER_PAGE_SIZE:
                 break
 
         return postings
@@ -229,8 +224,10 @@ class RoosterScraper(BaseScraper):
 
     @staticmethod
     def _is_srilanka(location: str) -> bool:
-        """Check if a location string refers to Sri Lanka."""
+        """Check if a location string matches any enabled search location."""
         if not location:
             return False
         loc_lower = location.lower()
-        return any(kw in loc_lower for kw in _LOCATION_KEYWORDS)
+        location_keywords = get_enabled_search_locations()
+        return any(kw in loc_lower for kw in location_keywords)
+

@@ -5,6 +5,7 @@ import type { Source } from "@/types/job";
 import ScrapeControlPanel from "@/components/ScrapeControlPanel";
 import RunHistoryTable from "@/components/RunHistoryTable";
 import KeywordEditor from "@/components/KeywordEditor";
+import SearchLocationEditor from "@/components/SearchLocationEditor";
 
 export default function AdminPage() {
 	const [sources, setSources] = useState<Source[]>([]);
@@ -44,6 +45,12 @@ export default function AdminPage() {
 			<section style={{ marginBottom: 28 }}>
 				<SectionLabel icon='🔑' title='Keywords' />
 				<KeywordEditor />
+			</section>
+
+			{/* Location preferences */}
+			<section style={{ marginBottom: 28 }}>
+				<SectionLabel icon='📍' title='Locations' />
+				<SearchLocationEditor />
 			</section>
 
 			{/* Run history */}

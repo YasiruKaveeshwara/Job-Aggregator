@@ -45,24 +45,13 @@ import httpx
 from bs4 import BeautifulSoup, Tag
 
 from app.scrapers.base import BaseScraper, RawJobPosting
+from app.search_keywords import get_enabled_search_keywords
 
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://www.topjobs.lk"
 _SEARCH_URL = f"{_BASE_URL}/applicant/vacancybyfunctionalarea.jsp"
-_JOB_URL_TEMPLATE = f"{_BASE_URL}/applicant/vacancy.jsp?AC={{ac}}&EC={{ec}}&JC={{jc}}"
-
-# Search terms that cover our IT role keywords.
-# topjobs is Sri Lanka's largest job board so these are broad on purpose;
-# normalize.py's role-keyword filter handles precision.
-_QUERIES = [
-    "software engineer",
-    "web developer",
-    "frontend",
-    "backend",
-    "full stack",
-    "software intern",
-]
+_JOB_URL_TEMPLATE = f"{_BASE_URL}/employer/JobAdvertismentServlet?ac={{ac}}&jc={{jc}}&ec={{ec}}"
 
 _BLOCK_SIZE = "1000"  # ask for up to 1000 results per search (server-side limit)
 
@@ -103,7 +92,8 @@ class TopjobsScraper(BaseScraper):
             return []
 
         with self._get_client() as client:
-            for query in _QUERIES:
+            keywords = get_enabled_search_keywords()
+            for query in keywords:
                 postings = self._search(client, query)
                 for p in postings:
                     if p.source_url not in seen_urls:

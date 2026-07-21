@@ -44,11 +44,12 @@ from bs4 import BeautifulSoup
 
 from app.scrapers.base import BaseScraper, RawJobPosting
 from app.search_keywords import get_enabled_search_keywords
+from app.search_locations import get_enabled_search_locations
 
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://hire.lk"
-_SEARCH_URL = f"{_BASE_URL}/jobs?q={{query}}&location="
+_SEARCH_URL = f"{_BASE_URL}/jobs?q={{query}}&location={{location}}"
 _INDUSTRY_URL = f"{_BASE_URL}/jobs?industry=it-software-engineering-web-cloud"
 
 _HEADERS = {
@@ -75,9 +76,12 @@ class HirelkScraper(BaseScraper):
         keywords = get_enabled_search_keywords()
 
         with self._get_client() as client:
-            # Keyword search passes
+            # Keyword search passes (location left empty = all of Sri Lanka)
             for query in keywords:
-                url = _SEARCH_URL.format(query=quote_plus(query))
+                url = _SEARCH_URL.format(
+                    query=quote_plus(query),
+                    location="",
+                )
 
                 if not self.robots_allowed(url):
                     logger.warning(

@@ -18,7 +18,6 @@ from bs4 import BeautifulSoup
 
 from app.config import (
     ROLE_KEYWORDS_EXCLUDE,
-    ROLE_KEYWORDS_INTERN_MODIFIER,
 )
 from app.scrapers.base import RawJobPosting
 from app.search_keywords import get_enabled_search_keywords
@@ -186,14 +185,6 @@ def _match_role(title: str) -> Optional[str]:
         if kw.lower() in title_lower:
             if matched_keyword is None or len(kw) > len(matched_keyword):
                 matched_keyword = kw
-
-    if matched_keyword is None:
-        return None
-
-    # Check for intern/trainee modifier
-    for mod in ROLE_KEYWORDS_INTERN_MODIFIER:
-        if mod.lower() in title_lower:
-            return f"{matched_keyword} {mod}"
 
     return matched_keyword
 

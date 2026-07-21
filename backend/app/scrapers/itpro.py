@@ -35,11 +35,11 @@ from bs4 import BeautifulSoup
 
 from app.scrapers.base import BaseScraper, RawJobPosting
 from app.search_keywords import get_enabled_search_keywords
+from app.config import SCRAPER_MAX_PAGES
 
 logger = logging.getLogger(__name__)
 
 _BASE_SEARCH = "https://itpro.lk/search"
-_MAX_PAGES = 10  # safety cap per keyword
 
 
 class ItproScraper(BaseScraper):
@@ -74,7 +74,7 @@ class ItproScraper(BaseScraper):
         base_url = f"{_BASE_SEARCH}/{slug}/"
 
         page = 1
-        while page <= _MAX_PAGES:
+        while page <= SCRAPER_MAX_PAGES:
             url = base_url if page == 1 else f"{base_url}?p={page}"
 
             try:
@@ -178,3 +178,4 @@ class ItproScraper(BaseScraper):
                 exc_info=True,
             )
             return None
+

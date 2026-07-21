@@ -40,15 +40,16 @@ from urllib.parse import urlencode
 
 from app.scrapers.base import BaseScraper, RawJobPosting
 from app.search_keywords import get_enabled_search_keywords
+from app.search_locations import get_enabled_search_locations
+from app.config import SCRAPER_MAX_PAGES, SCRAPER_PAGE_SIZE
 
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://xpress.jobs"
 _API_URL = f"{_BASE_URL}/api/jobs/searchJobs"
-_JOB_URL_TEMPLATE = f"{_BASE_URL}/job/{{job_id}}"
+_JOB_URL_TEMPLATE = f"{_BASE_URL}/jobs/view/{{job_id}}/"
 
-_PAGE_SIZE = 20
-_MAX_PAGES_PER_QUERY = 10  # cap at 200 results per keyword
+
 
 
 
@@ -90,16 +91,17 @@ class XpressjobsScraper(BaseScraper):
         keyword: str,
         results: list[RawJobPosting],
         seen_ids: set[int],
+        location_str: str = "",
     ) -> int:
         """Paginate through results for a single keyword. Returns number of new jobs added."""
         new_count = 0
 
-        for page in range(1, _MAX_PAGES_PER_QUERY + 1):
+        for page in range(1, SCRAPER_MAX_PAGES + 1):
             params = {
                 "page": page,
-                "pageSize": _PAGE_SIZE,
+                "pageSize": SCRAPER_PAGE_SIZE,
                 "keyword": keyword,
-                "locations": "",
+                "locations": location_str,
                 "sectors": "",
                 "jobTypes": "",
                 "careerLevels": "",
@@ -139,7 +141,7 @@ class XpressjobsScraper(BaseScraper):
             )
 
             # If fewer than a full page returned, we've reached the end
-            if len(items) < _PAGE_SIZE:
+            if len(items) < SCRAPER_PAGE_SIZE:
                 break
 
         return new_count
@@ -195,3 +197,4 @@ class XpressjobsScraper(BaseScraper):
                 exc_info=True,
             )
             return None
+
