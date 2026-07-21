@@ -321,13 +321,17 @@ class GovernmentjobScraper(BaseScraper):
         image_url = img.get("src") if img else None
 
         description_parts = [part for part in [employment_type, salary] if part]
+        card_description = " | ".join(description_parts)
+
+        # Fetch the detail page to get full vacancy description
+        full_description = self._fetch_detail_description(source_url, card_description)
 
         return RawJobPosting(
             job_title=title,
             company_name=company,
             location_raw=location or "Sri Lanka",
             salary_raw=salary,
-            description_raw=" | ".join(description_parts),
+            description_raw=full_description,
             posted_date_raw=posted_date,
             source_url=source_url,
             image_url=image_url,
@@ -376,6 +380,41 @@ class GovernmentjobScraper(BaseScraper):
         )
 
     # ── Helpers ──────────────────────────────────────────────────────
+
+    def _fetch_detail_description(self, url: str, fallback: str) -> str:
+        """
+        Fetch the job detail page and extract the main content body as plain text.
+
+        Falls back to ``fallback`` if the page cannot be fetched or parsed.
+        Uses the base-class HTTP client with rate limiting.
+        """
+        if not url or not url.startswith("http"):
+            return fallback
+        try:
+            with self._get_client() as client:
+                resp = self._request_with_retry(client, "GET", url)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            # Try common WP content containers in order of preference
+            for selector in (
+                ".entry-content",
+                ".post-content",
+                "article .content",
+                "article",
+                "main",
+            ):
+                node = soup.select_one(selector)
+                if node:
+                    text = node.get_text(separator="\n", strip=True)
+                    if len(text) > 100:
+                        return text
+        except Exception:
+            logger.debug(
+                "[%s] Could not fetch detail page %s — using card snippet",
+                self.platform_name,
+                url,
+            )
+        return fallback
+
 
     @staticmethod
     def _extract_company(title: str) -> str:

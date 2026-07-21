@@ -218,12 +218,15 @@ class AnyjobokScraper(BaseScraper):
 
         source_url = href if href.startswith("http") else f"{_BASE_URL}{href}"
 
+        # Fetch full description from the individual job page
+        description = self._fetch_detail_description(source_url)
+
         return RawJobPosting(
             job_title=title,
             company_name=company,
             location_raw=location,
             salary_raw=None,
-            description_raw="",
+            description_raw=description,
             posted_date_raw=posted_date,
             source_url=source_url,
             image_url=None,
@@ -259,6 +262,9 @@ class AnyjobokScraper(BaseScraper):
 
         source_url = href if href.startswith("http") else f"{_BASE_URL}{href}"
 
+        # Fetch full description from the individual job page
+        description = self._fetch_detail_description(source_url)
+
         img = card.find("img")
         image_url = img.get("src") if img else None
         if image_url and not image_url.startswith("http"):
@@ -269,9 +275,43 @@ class AnyjobokScraper(BaseScraper):
             company_name=company,
             location_raw=location,
             salary_raw=None,
-            description_raw="",  # Detail pages would need a separate fetch
+            description_raw=description,
             posted_date_raw=posted_date,
             source_url=source_url,
             image_url=image_url,
         )
 
+    def _fetch_detail_description(self, url: str) -> str:
+        """
+        GET the job detail page and extract the description body as plain text.
+
+        Uses a separate short-lived client with rate limiting. Falls back to
+        empty string on any error so it never blocks the listing scrape.
+        """
+        if not url or not url.startswith("http"):
+            return ""
+        try:
+            with self._get_client() as client:
+                resp = self._request_with_retry(client, "GET", url, timeout=20.0)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for selector in (
+                ".job-description",
+                ".job-detail-description",
+                "[class*='description']",
+                ".prose",
+                "article .content",
+                "main article",
+                "main section",
+            ):
+                node = soup.select_one(selector)
+                if node:
+                    text = node.get_text(separator="\n", strip=True)
+                    if len(text) > 80:
+                        return text
+        except Exception:
+            logger.debug(
+                "[%s] Detail page fetch failed for %s",
+                self.platform_name,
+                url,
+            )
+        return ""

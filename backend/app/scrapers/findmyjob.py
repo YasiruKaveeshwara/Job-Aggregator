@@ -168,10 +168,11 @@ class FindmyjobScraper(BaseScraper):
             content_html: str = item.get("content", {}).get("rendered", "")
             company = self._extract_company(content_html)
 
-            # Excerpt — short description as plain text
-            excerpt_html: str = item.get("excerpt", {}).get("rendered", "")
-            description = BeautifulSoup(excerpt_html, "html.parser").get_text(
-                separator=" ", strip=True
+            # Full post content HTML — this contains the complete job description.
+            # We use content.rendered (already fetched in the same API call) rather
+            # than the short excerpt so the user sees the full posting.
+            description = BeautifulSoup(content_html, "html.parser").get_text(
+                separator="\n", strip=True
             )
 
             return RawJobPosting(

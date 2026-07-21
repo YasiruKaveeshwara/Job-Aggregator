@@ -210,8 +210,10 @@ class TopjobsScraper(BaseScraper):
         if jc and ec and ac:
             source_url = _JOB_URL_TEMPLATE.format(ac=ac, ec=ec, jc=jc)
         else:
-            # Fallback: use the search URL (avoids dedup collisions)
             source_url = _SEARCH_URL
+
+        # Fetch full description from the detail page
+        description = self._fetch_detail_description(source_url, fallback=description)
 
         return RawJobPosting(
             job_title=title,
@@ -223,3 +225,38 @@ class TopjobsScraper(BaseScraper):
             source_url=source_url,
             image_url=None,
         )
+
+    def _fetch_detail_description(self, url: str, fallback: str = "") -> str:
+        """
+        GET the topjobs.lk job detail page and extract the vacancy description.
+
+        Falls back to ``fallback`` on any error.
+        """
+        if not url or url == _SEARCH_URL or not url.startswith("http"):
+            return fallback
+        try:
+            with self._get_client() as client:
+                resp = self._request_with_retry(client, "GET", url)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for selector in (
+                ".job-description",
+                ".vacancy-description",
+                ".jd-body",
+                "td.jobDescriptionContainer",
+                "#jobDescriptionSection",
+                "table.table-bordered td",
+                "main",
+            ):
+                node = soup.select_one(selector)
+                if node:
+                    text = node.get_text(separator="\n", strip=True)
+                    if len(text) > 80:
+                        return text
+        except Exception:
+            logger.debug(
+                "[%s] Detail page fetch failed for %s — using fallback",
+                self.platform_name,
+                url,
+            )
+        return fallback
+

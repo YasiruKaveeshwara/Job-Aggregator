@@ -168,24 +168,57 @@ class JobenvoyScraper(BaseScraper):
         type_tag = section.find("span", class_="job-type")
         job_type = type_tag.get_text(strip=True) if type_tag else None
 
-        # Time left: <span class="time-left"> (e.g. "🕒 12 days left")
-        time_tag = section.find("span", class_="time-left")
-        time_left = time_tag.get_text(strip=True) if time_tag else None
-
         # Image URL: <img> inside the link
         img = link.find("img")
         image_url = img.get("src") if img else None
         if image_url and not image_url.startswith("http"):
             image_url = f"{_BASE_URL}{image_url}"
 
+        # Fetch full description from the job detail page
+        description = self._fetch_detail_description(source_url, fallback=f"Job type: {job_type}" if job_type else "")
+
         return RawJobPosting(
             job_title=title,
             company_name=company,
             location_raw=location,
             salary_raw=None,
-            description_raw=f"Job type: {job_type}" if job_type else "",
-            posted_date_raw=None,  # time_left is "🕒 12 days left" (expiry), not a posted date
+            description_raw=description,
+            posted_date_raw=None,
             source_url=source_url,
             image_url=image_url,
         )
+
+    def _fetch_detail_description(self, url: str, fallback: str = "") -> str:
+        """
+        GET the jobenvoy.com job detail page and extract the description body.
+
+        Falls back to ``fallback`` on any error.
+        """
+        if not url or not url.startswith("http"):
+            return fallback
+        try:
+            with self._get_client() as client:
+                resp = self._request_with_retry(client, "GET", url)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for selector in (
+                ".job-description",
+                ".job-detail",
+                "[class*='description']",
+                ".card-body",
+                "article",
+                "main section",
+                "main",
+            ):
+                node = soup.select_one(selector)
+                if node:
+                    text = node.get_text(separator="\n", strip=True)
+                    if len(text) > 80:
+                        return text
+        except Exception:
+            logger.debug(
+                "[%s] Detail page fetch failed for %s — using fallback",
+                self.platform_name,
+                url,
+            )
+        return fallback
 

@@ -172,21 +172,24 @@ class HirelkScraper(BaseScraper):
         # Location: "COLOMBO" → "Colombo"
         location_raw = (data.get("location") or "").strip().title() or "Sri Lanka"
 
-        # Build description from snippet + employment type + workplace mode
+        # Build a short fallback from snippet + meta — used if detail fetch fails
         snippet = unescape(data.get("description_snippet") or "")
         emp_type = data.get("employment_type_label") or ""
         workplace = data.get("badge_label") or ""
-        desc_parts = [p for p in [emp_type, workplace, snippet] if p]
-        description = " | ".join(desc_parts[:2]) + (" — " + snippet if snippet else "")
+        meta_parts = [p for p in [emp_type, workplace] if p]
+        fallback_desc = " | ".join(meta_parts)
+        if snippet:
+            fallback_desc = (fallback_desc + " — " + snippet).lstrip(" — ")
 
-        # Posted date — use the human-readable relative time
-        # e.g. "18 hours ago", "2 days ago", "1 week ago"
-        # Convert to an approximate ISO datetime
+        # Posted date
         posted_at_human = data.get("posted_at_human") or ""
         posted_date_raw = self._parse_relative_time(posted_at_human)
 
         detail_url = data.get("detail_url") or ""
         logo_url = data.get("company_logo_url")
+
+        # Fetch full description from the detail page (has full_description_html)
+        description = self._fetch_detail_description(detail_url, fallback=fallback_desc)
 
         return RawJobPosting(
             job_title=title,
@@ -198,6 +201,42 @@ class HirelkScraper(BaseScraper):
             source_url=detail_url,
             image_url=logo_url,
         )
+
+    def _fetch_detail_description(self, url: str, fallback: str = "") -> str:
+        """
+        GET the hire.lk job detail page and extract the full description.
+
+        The detail page contains the full job posting HTML. Falls back to
+        ``fallback`` on any error.
+        """
+        if not url or not url.startswith("http"):
+            return fallback
+        try:
+            with self._get_client() as client:
+                resp = self._request_with_retry(client, "GET", url, headers=_HEADERS)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for selector in (
+                ".job-description",
+                "[class*='description']",
+                ".prose",
+                ".card-body",
+                "article .content",
+                "article",
+                "main",
+            ):
+                node = soup.select_one(selector)
+                if node:
+                    text = node.get_text(separator="\n", strip=True)
+                    if len(text) > 80:
+                        return text
+        except Exception:
+            logger.debug(
+                "[%s] Detail page fetch failed for %s — using fallback",
+                self.platform_name,
+                url,
+            )
+        return fallback
+
 
     @staticmethod
     def _parse_relative_time(text: str) -> Optional[str]:
