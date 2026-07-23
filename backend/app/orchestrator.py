@@ -24,7 +24,12 @@ from app.db import engine
 from app.dedup import dedup_and_insert
 from app.models import ScrapeRun, Source
 from app.normalize import normalize
-from app.scrapers.base import BaseScraper
+from app.scrapers.base import (
+    BaseScraper,
+    ScrapeCancelled,
+    clear_active_cancel_event,
+    set_active_cancel_event,
+)
 from app.classifier import classify_new_jobs
 
 # ── Scraper registry ─────────────────────────────────────────────────
@@ -63,17 +68,26 @@ _cancel_lock = threading.Lock()
 
 
 def request_cancel(run_id: int) -> bool:
-    """
-    Signal a running scrape to stop after the current site finishes.
-
-    Returns True if the run was found and signalled, False otherwise.
-    """
+    """Signal a running scrape to stop as soon as the current scraper check permits."""
     with _cancel_lock:
         event = _cancel_events.get(run_id)
-        if event is None:
-            return False
-        event.set()
-        return True
+        if event is not None:
+            event.set()
+        else:
+            logger.info(
+                "[orchestrator] No active cancel event for run %d — marking it cancelled",
+                run_id,
+            )
+
+    _mark_run_cancelled(run_id)
+    return True
+
+
+def cancel_all_runs() -> None:
+    """Set the cancel event for every currently registered scrape run."""
+    with _cancel_lock:
+        for event in _cancel_events.values():
+            event.set()
 
 
 def _register_cancel_event(run_id: int) -> threading.Event:
@@ -102,12 +116,19 @@ def run_scrape(run_id: int, sites: list[str] | str) -> None:
         sites: List of site names, or ``"all"`` for all enabled sites.
     """
     cancel_event = _register_cancel_event(run_id)
+    set_active_cancel_event(cancel_event)
     try:
         _execute_run(run_id, sites, cancel_event)
+    except ScrapeCancelled:
+        logger.info(
+            "[orchestrator] Run %d cancelled during active scraper work", run_id
+        )
+        _mark_run_cancelled(run_id)
     except Exception:
         logger.exception("[orchestrator] Fatal error in run %d", run_id)
         _mark_run_failed(run_id)
     finally:
+        clear_active_cancel_event()
         _unregister_cancel_event(run_id)
 
 
@@ -128,13 +149,16 @@ def _execute_run(
     logger.info("[orchestrator] Run %d starting for sites: %s", run_id, site_names)
 
     # Write initial progress
-    _update_progress(run_id, {
-        "total_sites": len(site_names),
-        "completed_sites": 0,
-        "current_site": site_names[0] if site_names else None,
-        "requested_sites": site_names,
-        "classifying": False,
-    })
+    _update_progress(
+        run_id,
+        {
+            "total_sites": len(site_names),
+            "completed_sites": 0,
+            "current_site": site_names[0] if site_names else None,
+            "requested_sites": site_names,
+            "classifying": False,
+        },
+    )
 
     # Process each site independently — collect IDs of newly inserted jobs
     all_new_job_ids: list[int] = []
@@ -144,18 +168,23 @@ def _execute_run(
         if cancel_event.is_set():
             logger.info(
                 "[orchestrator] Run %d CANCELLED after %d/%d sites",
-                run_id, completed, len(site_names),
+                run_id,
+                completed,
+                len(site_names),
             )
             _mark_run_cancelled(run_id)
             return
 
         # Update progress: which site we're currently scraping
-        _update_progress(run_id, {
-            "total_sites": len(site_names),
-            "completed_sites": completed,
-            "current_site": site_name,
-            "requested_sites": site_names,
-        })
+        _update_progress(
+            run_id,
+            {
+                "total_sites": len(site_names),
+                "completed_sites": completed,
+                "current_site": site_name,
+                "requested_sites": site_names,
+            },
+        )
 
         _process_site(run_id, site_name, all_new_job_ids)
         completed += 1
@@ -165,16 +194,20 @@ def _execute_run(
     if all_new_job_ids:
         logger.info(
             "[orchestrator] Run %d — classifying %d new jobs with Gemini",
-            run_id, len(all_new_job_ids),
+            run_id,
+            len(all_new_job_ids),
         )
-        _update_progress(run_id, {
-            "total_sites": len(site_names),
-            "completed_sites": completed,
-            "current_site": None,
-            "requested_sites": site_names,
-            "classifying": True,
-            "classifying_count": len(all_new_job_ids),
-        })
+        _update_progress(
+            run_id,
+            {
+                "total_sites": len(site_names),
+                "completed_sites": completed,
+                "current_site": None,
+                "requested_sites": site_names,
+                "classifying": True,
+                "classifying_count": len(all_new_job_ids),
+            },
+        )
         try:
             classifier_stats = classify_new_jobs(all_new_job_ids)
             logger.info("[orchestrator] Classifier: %s", classifier_stats)
@@ -183,13 +216,16 @@ def _execute_run(
             logger.exception("[orchestrator] Classifier failed — jobs kept as NEW")
 
     # Final progress update
-    _update_progress(run_id, {
-        "total_sites": len(site_names),
-        "completed_sites": completed,
-        "current_site": None,
-        "requested_sites": site_names,
-        "classifying": False,
-    })
+    _update_progress(
+        run_id,
+        {
+            "total_sites": len(site_names),
+            "completed_sites": completed,
+            "current_site": None,
+            "requested_sites": site_names,
+            "classifying": False,
+        },
+    )
 
     # Mark run as completed
     _mark_run_completed(run_id)
@@ -197,7 +233,7 @@ def _execute_run(
 
 def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
     """Fetch, normalize, and dedup postings from a single site.
-    
+
     Appends IDs of newly inserted jobs to new_job_ids for later classification.
     """
 
@@ -241,7 +277,12 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
     # ── Fetch ────────────────────────────────────────────────────
     try:
         scraper = scraper_cls()
+        scraper._cancel_event = cancel_event
         raw_postings = scraper.fetch()
+    except ScrapeCancelled:
+        logger.info("[orchestrator] %s fetch cancelled for run %d", site_name, run_id)
+        _mark_run_cancelled(run_id)
+        raise
     except Exception as exc:
         logger.exception("[orchestrator] %s fetch failed", site_name)
         fetch_error = str(exc)
@@ -266,7 +307,10 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
                         status, inserted_id = dedup_and_insert(session, normalized)
                         if status == "new":
                             new_count += 1
-                            if inserted_id is not None and inserted_id not in new_job_ids:
+                            if (
+                                inserted_id is not None
+                                and inserted_id not in new_job_ids
+                            ):
                                 new_job_ids.append(inserted_id)
                         else:
                             dup_count += 1
@@ -349,7 +393,6 @@ def _update_classifier_result(run_id: int, stats: dict) -> None:
         session.commit()
 
 
-
 def _update_progress(run_id: int, progress: dict) -> None:
     """Update the progress JSON on the ScrapeRun row."""
     with Session(engine) as session:
@@ -389,12 +432,14 @@ def _mark_run_cancelled(run_id: int) -> None:
     """Mark a ScrapeRun as CANCELLED, saving all results gathered so far."""
     with Session(engine) as session:
         run = session.get(ScrapeRun, run_id)
-        if run:
+        if run and run.status == "RUNNING":
             run.status = "CANCELLED"
             run.finished_at = datetime.now(timezone.utc)
             session.add(run)
             session.commit()
-            logger.info("[orchestrator] Run %d CANCELLED (partial results saved)", run_id)
+            logger.info(
+                "[orchestrator] Run %d CANCELLED (partial results saved)", run_id
+            )
 
 
 def _update_source_timestamp(site_name: str) -> None:

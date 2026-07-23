@@ -10,6 +10,7 @@ Every site-specific scraper (itpro.py, anyjobok.py, …) subclasses
 """
 
 import logging
+import threading
 import time
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -29,8 +30,30 @@ from app.config import (
 
 logger = logging.getLogger(__name__)
 
+_active_cancel_event: threading.local = threading.local()
+
+
+class ScrapeCancelled(RuntimeError):
+    """Raised when a scrape run is cancelled while a scraper is in flight."""
+
+
+def set_active_cancel_event(cancel_event: threading.Event | None) -> None:
+    """Bind a cancel event to the current thread for scraper use."""
+    if cancel_event is None:
+        if hasattr(_active_cancel_event, "value"):
+            del _active_cancel_event.value
+    else:
+        _active_cancel_event.value = cancel_event
+
+
+def clear_active_cancel_event() -> None:
+    """Remove the active cancel event from the current thread."""
+    if hasattr(_active_cancel_event, "value"):
+        del _active_cancel_event.value
+
 
 # ── Data shape returned by every scraper ─────────────────────────────
+
 
 class RawJobPosting(BaseModel):
     """
@@ -43,11 +66,11 @@ class RawJobPosting(BaseModel):
     job_title: str
     company_name: str
     location_raw: Optional[str] = None
-    salary_raw: Optional[str] = None       # un-parsed; normalize.py handles it
+    salary_raw: Optional[str] = None  # un-parsed; normalize.py handles it
     description_raw: str
     posted_date_raw: Optional[str] = None  # raw string; normalize.py parses it
     source_url: str
-    image_url: Optional[str] = None        # company logo or job image URL
+    image_url: Optional[str] = None  # company logo or job image URL
 
 
 # ── Robot-file cache ──────────────────────────────────────────────────
@@ -106,8 +129,8 @@ def _get_robots_parser(url: str) -> RobotFileParser:
     return _robots_cache[origin]
 
 
-
 # ── Base scraper ──────────────────────────────────────────────────────
+
 
 class BaseScraper(ABC):
     """
@@ -120,8 +143,15 @@ class BaseScraper(ABC):
 
     platform_name: str  # e.g. "itpro.lk" — set by each subclass
 
-    def __init__(self) -> None:
+    def __init__(self, cancel_event: threading.Event | None = None) -> None:
         self._last_request_time: float = 0.0
+        self._cancel_event = cancel_event
+
+    def _raise_if_cancelled(self) -> None:
+        """Raise if the current run has been cancelled."""
+        event = self._cancel_event or getattr(_active_cancel_event, "value", None)
+        if event is not None and event.is_set():
+            raise ScrapeCancelled("Scrape cancelled")
 
     # ── HTTP client ──────────────────────────────────────────────────
 
@@ -154,9 +184,15 @@ class BaseScraper(ABC):
         Sleep if needed so that consecutive requests to the same host
         are spaced at least *seconds* apart.
         """
+        self._raise_if_cancelled()
         elapsed = time.time() - self._last_request_time
         if elapsed < seconds:
-            time.sleep(seconds - elapsed)
+            remaining = seconds - elapsed
+            while remaining > 0:
+                self._raise_if_cancelled()
+                chunk = min(0.2, remaining)
+                time.sleep(chunk)
+                remaining -= chunk
         self._last_request_time = time.time()
 
     # ── Retry with backoff ───────────────────────────────────────────
@@ -177,6 +213,7 @@ class BaseScraper(ABC):
         last_exc: Exception | None = None
 
         for attempt in range(MAX_RETRIES):
+            self._raise_if_cancelled()
             self._rate_limit()
 
             try:
@@ -184,7 +221,7 @@ class BaseScraper(ABC):
 
                 # Retry on server errors and rate limits
                 if response.status_code in (429, 500, 502, 503, 504):
-                    wait = RETRY_BACKOFF_FACTOR * (2 ** attempt)
+                    wait = RETRY_BACKOFF_FACTOR * (2**attempt)
                     logger.warning(
                         "[%s] HTTP %d from %s — retrying in %.1fs (attempt %d/%d)",
                         self.platform_name,
@@ -194,7 +231,11 @@ class BaseScraper(ABC):
                         attempt + 1,
                         MAX_RETRIES,
                     )
-                    time.sleep(wait)
+                    while wait > 0:
+                        self._raise_if_cancelled()
+                        chunk = min(0.2, wait)
+                        time.sleep(chunk)
+                        wait -= chunk
                     continue
 
                 response.raise_for_status()
@@ -206,7 +247,7 @@ class BaseScraper(ABC):
 
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
                 last_exc = exc
-                wait = RETRY_BACKOFF_FACTOR * (2 ** attempt)
+                wait = RETRY_BACKOFF_FACTOR * (2**attempt)
                 logger.warning(
                     "[%s] Network error fetching %s: %s — retrying in %.1fs (attempt %d/%d)",
                     self.platform_name,
@@ -216,7 +257,11 @@ class BaseScraper(ABC):
                     attempt + 1,
                     MAX_RETRIES,
                 )
-                time.sleep(wait)
+                while wait > 0:
+                    self._raise_if_cancelled()
+                    chunk = min(0.2, wait)
+                    time.sleep(chunk)
+                    wait -= chunk
 
         # All retries exhausted
         raise RuntimeError(

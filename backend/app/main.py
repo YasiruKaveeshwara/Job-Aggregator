@@ -18,6 +18,7 @@ from sqlmodel import Session, select
 from app.config import CORS_ORIGINS
 from app.db import create_db_and_tables, engine
 from app.models import Source
+from app.orchestrator import cancel_all_runs
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ def _seed_sources() -> None:
 
 # ── Lifespan (startup / shutdown) ────────────────────────────────────
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Runs on startup: create tables, seed sources, load keyword config."""
@@ -60,10 +62,12 @@ async def lifespan(app: FastAPI):
     _seed_sources()
     # Load persisted keyword config (if any)
     from app.routers.keywords import load_keywords_from_disk
+
     load_keywords_from_disk()
     logger.info("Database ready — tables created and sources seeded")
     yield
-    # Nothing to clean up on shutdown (SQLite file stays)
+    logger.info("Shutting down — cancelling any in-flight scrape runs")
+    cancel_all_runs()
 
 
 # ── App instance ─────────────────────────────────────────────────────
@@ -100,6 +104,7 @@ app.include_router(keywords.router)
 
 
 # ── Health check ─────────────────────────────────────────────────────
+
 
 @app.get("/health", tags=["system"])
 def health_check():

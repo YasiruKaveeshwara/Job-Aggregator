@@ -93,3 +93,4 @@ yarn-error.log*
 job-aggregator-agent-build-instructions.md
 frontend/AGENTS.md
 frontend/CLAUDE.md
+system_analysis.md

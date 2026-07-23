@@ -24,13 +24,16 @@ router = APIRouter(prefix="/api/scrape", tags=["scrape"])
 
 # ── Request / Response models ────────────────────────────────────────
 
+
 class ScrapeRunRequest(BaseModel):
     """Body for POST /api/scrape/run."""
+
     sites: Union[list[str], str]  # ["itpro.lk", "anyjobok.com"] or "all"
 
 
 class ProgressOut(BaseModel):
     """Progress info for a running scrape."""
+
     total_sites: int = 0
     completed_sites: int = 0
     current_site: Optional[str] = None
@@ -39,6 +42,7 @@ class ProgressOut(BaseModel):
 
 class ScrapeRunOut(BaseModel):
     """Response for a ScrapeRun record."""
+
     id: int
     started_at: datetime
     finished_at: Optional[datetime]
@@ -50,10 +54,12 @@ class ScrapeRunOut(BaseModel):
 
 class ScrapeRunCreated(BaseModel):
     """Response for POST /api/scrape/run."""
+
     run_id: int
 
 
 # ── Endpoints ────────────────────────────────────────────────────────
+
 
 @router.post("/run", response_model=ScrapeRunCreated)
 def start_scrape(
@@ -113,20 +119,17 @@ def cancel_scrape(
     if not run:
         raise HTTPException(status_code=404, detail=f"ScrapeRun {run_id} not found")
 
-    if run.status != "RUNNING":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Run {run_id} is not running (status: {run.status})",
-        )
+    if run.status == "RUNNING":
+        request_cancel(run_id)
+        return {"detail": f"Cancel signal sent for run {run_id}"}
 
-    success = request_cancel(run_id)
-    if not success:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Could not cancel run {run_id} — may have already finished",
-        )
+    if run.status == "CANCELLED":
+        return {"detail": f"Run {run_id} is already cancelled"}
 
-    return {"detail": f"Cancel signal sent for run {run_id}"}
+    raise HTTPException(
+        status_code=400,
+        detail=f"Run {run_id} is not running (status: {run.status})",
+    )
 
 
 @router.get("/runs", response_model=list[ScrapeRunOut])
@@ -140,6 +143,7 @@ def list_scrape_runs(
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
+
 
 def _run_to_out(run: ScrapeRun) -> ScrapeRunOut:
     """Convert a ScrapeRun DB row to the API response model."""
