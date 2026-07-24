@@ -174,8 +174,7 @@ class JobenvoyScraper(BaseScraper):
         if image_url and not image_url.startswith("http"):
             image_url = f"{_BASE_URL}{image_url}"
 
-        # Fetch full description from the job detail page
-        description = self._fetch_detail_description(source_url, fallback=f"Job type: {job_type}" if job_type else "")
+        description = f"{title} - {company}" + (f" ({job_type})" if job_type else "")
 
         return RawJobPosting(
             job_title=title,

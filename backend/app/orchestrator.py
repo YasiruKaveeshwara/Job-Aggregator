@@ -16,13 +16,15 @@ Given a list of site names (or ``"all"`` for all enabled sites), for each one:
 import json
 import logging
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
 from app.db import engine
 from app.dedup import dedup_and_insert
-from app.models import ScrapeRun, Source
+from app.models import Job, JobSource, ScrapeRun, Source
 from app.normalize import normalize
 from app.scrapers.base import (
     BaseScraper,
@@ -132,10 +134,28 @@ def run_scrape(run_id: int, sites: list[str] | str) -> None:
         _unregister_cancel_event(run_id)
 
 
+def _calc_progress_timers(start_time: float, completed: int, total: int, is_classifying: bool = False) -> tuple[float, float]:
+    """Return (elapsed_seconds, estimated_remaining_seconds)."""
+    elapsed = max(0.0, round(time.time() - start_time, 1))
+    if is_classifying:
+        return elapsed, 3.0
+    if completed > 0 and total > completed:
+        avg_per_site = elapsed / completed
+        remaining_sites = total - completed
+        est_remaining = max(1.0, round(remaining_sites * avg_per_site, 1))
+    elif completed == total:
+        est_remaining = 0.0
+    else:
+        # Initial estimate before site 1 completes (~3s per site)
+        est_remaining = max(2.0, round(total * 3.0, 1))
+    return elapsed, est_remaining
+
+
 def _execute_run(
     run_id: int, sites: list[str] | str, cancel_event: threading.Event
 ) -> None:
     """Core logic, wrapped so the outer function can catch and mark FAILED."""
+    run_start_time = time.time()
 
     # Resolve site list
     with Session(engine) as session:
@@ -148,7 +168,7 @@ def _execute_run(
 
     logger.info("[orchestrator] Run %d starting for sites: %s", run_id, site_names)
 
-    # Write initial progress
+    elapsed, est_remaining = _calc_progress_timers(run_start_time, 0, len(site_names))
     _update_progress(
         run_id,
         {
@@ -157,6 +177,8 @@ def _execute_run(
             "current_site": site_names[0] if site_names else None,
             "requested_sites": site_names,
             "classifying": False,
+            "elapsed_seconds": elapsed,
+            "estimated_remaining_seconds": est_remaining,
         },
     )
 
@@ -175,7 +197,7 @@ def _execute_run(
             _mark_run_cancelled(run_id)
             return
 
-        # Update progress: which site we're currently scraping
+        elapsed, est_remaining = _calc_progress_timers(run_start_time, completed, len(site_names))
         _update_progress(
             run_id,
             {
@@ -183,6 +205,8 @@ def _execute_run(
                 "completed_sites": completed,
                 "current_site": site_name,
                 "requested_sites": site_names,
+                "elapsed_seconds": elapsed,
+                "estimated_remaining_seconds": est_remaining,
             },
         )
 
@@ -190,13 +214,13 @@ def _execute_run(
         completed += 1
 
     # ── Gemini classification ────────────────────────────────────────
-    # Run after ALL sites are done — classify all new jobs in one pass
     if all_new_job_ids:
         logger.info(
             "[orchestrator] Run %d — classifying %d new jobs with Gemini",
             run_id,
             len(all_new_job_ids),
         )
+        elapsed, est_remaining = _calc_progress_timers(run_start_time, completed, len(site_names), is_classifying=True)
         _update_progress(
             run_id,
             {
@@ -206,6 +230,8 @@ def _execute_run(
                 "requested_sites": site_names,
                 "classifying": True,
                 "classifying_count": len(all_new_job_ids),
+                "elapsed_seconds": elapsed,
+                "estimated_remaining_seconds": est_remaining,
             },
         )
         try:
@@ -215,7 +241,7 @@ def _execute_run(
         except Exception:
             logger.exception("[orchestrator] Classifier failed — jobs kept as NEW")
 
-    # Final progress update
+    elapsed, _ = _calc_progress_timers(run_start_time, completed, len(site_names))
     _update_progress(
         run_id,
         {
@@ -224,18 +250,18 @@ def _execute_run(
             "current_site": None,
             "requested_sites": site_names,
             "classifying": False,
+            "elapsed_seconds": elapsed,
+            "estimated_remaining_seconds": 0.0,
         },
     )
 
-    # Mark run as completed
     _mark_run_completed(run_id)
 
 
 def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
-    """Fetch, normalize, and dedup postings from a single site.
-
-    Appends IDs of newly inserted jobs to new_job_ids for later classification.
-    """
+    """Fetch, normalize, and dedup postings from a single site."""
+    site_start_time = time.time()
+    site_new_ids: list[int] = []
 
     # Check if site is enabled
     with Session(engine) as session:
@@ -251,6 +277,7 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
                     "new": 0,
                     "duplicates": 0,
                     "error": "disabled",
+                    "duration_seconds": 0.0,
                 },
             )
             return
@@ -267,6 +294,7 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
                 "new": 0,
                 "duplicates": 0,
                 "error": f"no scraper for {site_name}",
+                "duration_seconds": 0.0,
             },
         )
         return
@@ -277,7 +305,6 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
     # ── Fetch ────────────────────────────────────────────────────
     try:
         scraper = scraper_cls()
-        scraper._cancel_event = cancel_event
         raw_postings = scraper.fetch()
     except ScrapeCancelled:
         logger.info("[orchestrator] %s fetch cancelled for run %d", site_name, run_id)
@@ -296,22 +323,18 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
             # ── Normalize + Dedup ────────────────────────────────────────
             with Session(engine) as session:
                 for raw in raw_postings:
-                    # Normalize (role-keyword filter)
                     normalized = normalize(raw, platform=site_name)
                     if normalized is None:
-                        # Filtered out by role-keyword matching
                         continue
 
-                    # Dedup + insert
                     try:
                         status, inserted_id = dedup_and_insert(session, normalized)
                         if status == "new":
                             new_count += 1
-                            if (
-                                inserted_id is not None
-                                and inserted_id not in new_job_ids
-                            ):
-                                new_job_ids.append(inserted_id)
+                            if inserted_id is not None:
+                                if inserted_id not in new_job_ids:
+                                    new_job_ids.append(inserted_id)
+                                site_new_ids.append(inserted_id)
                         else:
                             dup_count += 1
                     except Exception:
@@ -324,12 +347,19 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
 
                 session.commit()
 
+            # Concurrently enrich full descriptions ONLY for newly inserted jobs
+            if site_new_ids:
+                _enrich_new_job_descriptions(site_name, site_new_ids, scraper_cls)
+
+            duration_seconds = round(time.time() - site_start_time, 1)
+
             logger.info(
-                "[orchestrator] %s: found=%d, new=%d, duplicates=%d",
+                "[orchestrator] %s: found=%d, new=%d, duplicates=%d (took %.1fs)",
                 site_name,
                 found,
                 new_count,
                 dup_count,
+                duration_seconds,
             )
 
             _update_site_result(
@@ -340,9 +370,11 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
                     "new": new_count,
                     "duplicates": dup_count,
                     "error": None,
+                    "duration_seconds": duration_seconds,
                 },
             )
         else:
+            duration_seconds = round(time.time() - site_start_time, 1)
             _update_site_result(
                 run_id,
                 site_name,
@@ -351,10 +383,72 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
                     "new": 0,
                     "duplicates": 0,
                     "error": fetch_error,
+                    "duration_seconds": duration_seconds,
                 },
             )
     finally:
         _update_source_timestamp(site_name)
+
+
+def _enrich_new_job_descriptions(site_name: str, job_ids: list[int], scraper_cls) -> None:
+    """Concurrently fetch full detail descriptions ONLY for newly inserted jobs."""
+    if not job_ids:
+        return
+    try:
+        scraper = scraper_cls()
+        if not hasattr(scraper, "_fetch_detail_description"):
+            return
+
+        job_urls: list[tuple[int, str]] = []
+        with Session(engine) as session:
+            for jid in job_ids:
+                src_stmt = select(JobSource).where(JobSource.job_id == jid)
+                sources = session.exec(src_stmt).all()
+                if sources and sources[0].url:
+                    job_urls.append((jid, sources[0].url))
+
+        if not job_urls:
+            return
+
+        logger.info(
+            "[orchestrator] %s — fetching detail descriptions concurrently for %d new jobs",
+            site_name,
+            len(job_urls),
+        )
+
+        def _fetch_one(jid: int, url: str) -> tuple[int, str | None]:
+            try:
+                desc = scraper._fetch_detail_description(url)
+                if desc and len(desc) > 35:
+                    return (jid, desc)
+            except Exception:
+                pass
+            return (jid, None)
+
+        updated_count = 0
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(_fetch_one, jid, url) for jid, url in job_urls]
+            with Session(engine) as session:
+                for future in as_completed(futures):
+                    jid, desc = future.result()
+                    if desc:
+                        j = session.get(Job, jid)
+                        if j:
+                            j.description_clean = desc
+                            session.add(j)
+                            updated_count += 1
+                session.commit()
+
+        logger.info(
+            "[orchestrator] %s — enriched %d/%d new jobs with full descriptions",
+            site_name,
+            updated_count,
+            len(job_urls),
+        )
+    except Exception:
+        logger.warning(
+            "[orchestrator] %s — description enrichment failed", site_name, exc_info=True
+        )
 
 
 # ── ScrapeRun helpers ────────────────────────────────────────────────
@@ -409,11 +503,15 @@ def _mark_run_completed(run_id: int) -> None:
     with Session(engine) as session:
         run = session.get(ScrapeRun, run_id)
         if run:
+            now = datetime.now(timezone.utc)
             run.status = "COMPLETED"
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = now
+            if run.started_at:
+                started = run.started_at if run.started_at.tzinfo else run.started_at.replace(tzinfo=timezone.utc)
+                run.duration_seconds = round((now - started).total_seconds(), 1)
             session.add(run)
             session.commit()
-            logger.info("[orchestrator] Run %d COMPLETED", run_id)
+            logger.info("[orchestrator] Run %d COMPLETED (took %.1fs)", run_id, run.duration_seconds or 0.0)
 
 
 def _mark_run_failed(run_id: int) -> None:
@@ -421,11 +519,15 @@ def _mark_run_failed(run_id: int) -> None:
     with Session(engine) as session:
         run = session.get(ScrapeRun, run_id)
         if run:
+            now = datetime.now(timezone.utc)
             run.status = "FAILED"
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = now
+            if run.started_at:
+                started = run.started_at if run.started_at.tzinfo else run.started_at.replace(tzinfo=timezone.utc)
+                run.duration_seconds = round((now - started).total_seconds(), 1)
             session.add(run)
             session.commit()
-            logger.error("[orchestrator] Run %d FAILED", run_id)
+            logger.error("[orchestrator] Run %d FAILED after %.1fs", run_id, run.duration_seconds or 0.0)
 
 
 def _mark_run_cancelled(run_id: int) -> None:
@@ -433,12 +535,16 @@ def _mark_run_cancelled(run_id: int) -> None:
     with Session(engine) as session:
         run = session.get(ScrapeRun, run_id)
         if run and run.status == "RUNNING":
+            now = datetime.now(timezone.utc)
             run.status = "CANCELLED"
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = now
+            if run.started_at:
+                started = run.started_at if run.started_at.tzinfo else run.started_at.replace(tzinfo=timezone.utc)
+                run.duration_seconds = round((now - started).total_seconds(), 1)
             session.add(run)
             session.commit()
             logger.info(
-                "[orchestrator] Run %d CANCELLED (partial results saved)", run_id
+                "[orchestrator] Run %d CANCELLED (partial results saved after %.1fs)", run_id, run.duration_seconds or 0.0
             )
 
 

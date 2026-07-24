@@ -38,6 +38,10 @@ class ProgressOut(BaseModel):
     completed_sites: int = 0
     current_site: Optional[str] = None
     requested_sites: list[str] = []
+    classifying: bool = False
+    classifying_count: int = 0
+    elapsed_seconds: Optional[float] = None
+    estimated_remaining_seconds: Optional[float] = None
 
 
 class ScrapeRunOut(BaseModel):
@@ -46,6 +50,7 @@ class ScrapeRunOut(BaseModel):
     id: int
     started_at: datetime
     finished_at: Optional[datetime]
+    duration_seconds: Optional[float]
     status: str
     triggered_by: str
     site_results: dict[str, Any]  # parsed from JSON string
@@ -157,10 +162,24 @@ def _run_to_out(run: ScrapeRun) -> ScrapeRunOut:
     except (json.JSONDecodeError, AttributeError):
         progress_data = {}
 
+    started_at = run.started_at
+    if started_at and started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
+
+    finished_at = run.finished_at
+    if finished_at and finished_at.tzinfo is None:
+        finished_at = finished_at.replace(tzinfo=timezone.utc)
+
+    # Compute duration fallback if finished but duration_seconds not set yet
+    duration = run.duration_seconds
+    if duration is None and started_at and finished_at:
+        duration = round((finished_at - started_at).total_seconds(), 1)
+
     return ScrapeRunOut(
         id=run.id,
-        started_at=run.started_at,
-        finished_at=run.finished_at,
+        started_at=started_at,
+        finished_at=finished_at,
+        duration_seconds=duration,
         status=run.status,
         triggered_by=run.triggered_by,
         site_results=site_results,

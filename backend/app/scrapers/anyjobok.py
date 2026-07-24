@@ -91,7 +91,8 @@ class AnyjobokScraper(BaseScraper):
                     continue
 
                 for page in range(1, SCRAPER_MAX_PAGES + 1):
-                    url = base_url if page == 1 else f"{base_url}&page={page}"
+                    sep = "&" if "?" in base_url else "?"
+                    url = base_url if page == 1 else f"{base_url}{sep}page={page}"
 
                     try:
                         response = self._request_with_retry(
@@ -217,9 +218,7 @@ class AnyjobokScraper(BaseScraper):
             )
 
         source_url = href if href.startswith("http") else f"{_BASE_URL}{href}"
-
-        # Fetch full description from the individual job page
-        description = self._fetch_detail_description(source_url)
+        description = f"{title} - {company}"
 
         return RawJobPosting(
             job_title=title,
@@ -261,9 +260,7 @@ class AnyjobokScraper(BaseScraper):
             )
 
         source_url = href if href.startswith("http") else f"{_BASE_URL}{href}"
-
-        # Fetch full description from the individual job page
-        description = self._fetch_detail_description(source_url)
+        description = f"{title} - {company}"
 
         img = card.find("img")
         image_url = img.get("src") if img else None

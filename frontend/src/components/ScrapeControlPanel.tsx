@@ -24,13 +24,36 @@ const PLATFORM_COLORS: Record<string, string> = {
 	"hire.lk": "#3b82f6",
 };
 
+function formatDurationSec(sec: number): string {
+	if (isNaN(sec) || sec <= 0) return "0s";
+	const m = Math.floor(sec / 60);
+	const s = Math.floor(sec % 60);
+	if (m === 0) return `${s}s`;
+	return `${m}m ${s}s`;
+}
+
+function parseUtcDate(iso: string | null | undefined): number | null {
+	if (!iso) return null;
+	const formatted = (iso.endsWith("Z") || iso.includes("+") || iso.includes("-", 10)) ? iso : `${iso}Z`;
+	const ms = new Date(formatted).getTime();
+	return isNaN(ms) ? null : ms;
+}
+
 export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFinished }: Props) {
 	const [runState, setRunState] = useState<RunState>("idle");
 	const [currentRun, setCurrentRun] = useState<ScrapeRun | null>(null);
 	const [mergedResults, setMergedResults] = useState<Record<string, SiteResult>>({});
 	const [error, setError] = useState<string | null>(null);
 	const [cancelling, setCancelling] = useState(false);
+	const [now, setNow] = useState<number>(Date.now());
 	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+	// Live tick timer every 1s when scraping
+	useEffect(() => {
+		if (currentRun?.status !== "RUNNING") return;
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(timer);
+	}, [currentRun?.status]);
 
 	const stopPolling = useCallback(() => {
 		if (pollRef.current) {
@@ -148,6 +171,32 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 	const isClassifying = progress?.classifying ?? false;
 	const classifyingCount = progress?.classifying_count ?? 0;
 	const progressPercent = totalSites > 0 ? Math.round((completedSites / totalSites) * 100) : 0;
+	// Duration & Estimated Remaining Time calculations
+	const startedAtMs = parseUtcDate(currentRun?.started_at);
+	const finishedAtMs = parseUtcDate(currentRun?.finished_at);
+
+	const elapsedSec =
+		currentRun?.status === "RUNNING" && startedAtMs
+			? Math.max(0, Math.floor((now - startedAtMs) / 1000))
+			: (currentRun?.duration_seconds != null)
+			? Math.round(currentRun.duration_seconds)
+			: startedAtMs && finishedAtMs
+			? Math.max(0, Math.floor((finishedAtMs - startedAtMs) / 1000))
+			: 0;
+
+	const backendEta = progress?.estimated_remaining_seconds;
+	let estRemainingText = "Calculating...";
+	if (backendEta != null && backendEta > 0) {
+		estRemainingText = `~${formatDurationSec(Math.round(backendEta))}`;
+	} else if (currentRun?.status === "RUNNING" && completedSites > 0 && totalSites > completedSites && elapsedSec > 0) {
+		const avgSecPerSite = elapsedSec / completedSites;
+		const remainingSites = totalSites - completedSites;
+		let remSec = Math.round(remainingSites * avgSecPerSite);
+		if (isClassifying) remSec += 3;
+		estRemainingText = `~${formatDurationSec(remSec)}`;
+	} else if (isClassifying) {
+		estRemainingText = "~3s (AI filtering)";
+	}
 
 	return (
 		<div style={{ padding: 0 }}>
@@ -196,11 +245,11 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 				)}
 			</div>
 
-			{/* Progress bar — only visible when running */}
+			{/* Progress bar & Timers — only visible when running */}
 			{runState === "running" && totalSites > 0 && (
 				<div style={{ marginBottom: 16 }}>
-					{/* Label */}
-					<div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
+					{/* Status Label */}
+					<div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 12 }}>
 						<span style={{ color: "var(--text-secondary)" }}>
 							{cancelling
 							? "Stopping after current site..."
@@ -213,6 +262,22 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 						<span style={{ color: "var(--text-muted)" }}>
 							{completedSites}/{totalSites} sites ({progressPercent}%)
 						</span>
+					</div>
+
+					{/* Live Timer Row */}
+					<div style={{
+						display: "flex",
+						justifyContent: "space-between",
+						fontSize: 11,
+						color: "var(--text-secondary)",
+						marginBottom: 6,
+						background: "var(--bg-base)",
+						padding: "4px 8px",
+						borderRadius: "var(--radius)",
+						border: "1px solid var(--border)",
+					}}>
+						<span>Elapsed: <strong style={{ color: "var(--text-primary)" }}>{formatDurationSec(elapsedSec)}</strong></span>
+						<span>Est. Remaining: <strong style={{ color: "var(--accent)" }}>{estRemainingText}</strong></span>
 					</div>
 
 					{/* Bar track */}
@@ -294,6 +359,11 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 					<div style={{ marginBottom: 12, fontSize: 12, color: "var(--text-secondary)" }}>
 						Last fetch:{" "}
 						<span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{lastFetchLabel || "—"}</span>
+						{elapsedSec > 0 && (
+							<span style={{ marginLeft: 12, color: "var(--text-muted)" }}>
+								Total duration: <strong style={{ color: "var(--text-primary)" }}>{formatDurationSec(elapsedSec)}</strong>
+							</span>
+						)}
 						{currentRun?.status === "CANCELLED" && (
 							<span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-muted)", fontStyle: "italic" }}>
 								(stopped early)
@@ -467,12 +537,17 @@ function SiteRow({
 			</div>
 
 			{/* Counts / Status */}
-			<div style={{ minWidth: 140, display: "flex", justifyContent: "flex-end" }}>
+			<div style={{ minWidth: 160, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
 				{done && !result?.error ?
-					<div style={{ display: "flex", gap: 10, fontSize: 12 }}>
+					<div style={{ display: "flex", gap: 8, fontSize: 12, alignItems: "center" }}>
 						<Stat label='found' value={result!.found} />
 						<Stat label='new' value={result!.new} highlight />
 						<Stat label='dup' value={result!.duplicates} />
+						{result?.duration_seconds !== undefined && result.duration_seconds > 0 && (
+							<span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>
+								({result.duration_seconds}s)
+							</span>
+						)}
 					</div>
 				: done && result?.error ?
 					<span style={{ fontSize: 12, color: "var(--red)" }}>{result.error}</span>

@@ -154,9 +154,7 @@ class ItproScraper(BaseScraper):
 
             time_tag = card.select_one("time.time-posted")
             posted_date_raw = time_tag.get("datetime") if time_tag else None
-
-            # Fetch full description from the job detail page
-            description = self._fetch_detail_description(str(job_url), client)
+            description = f"{title} - {company}"
 
             return RawJobPosting(
                 job_title=title,

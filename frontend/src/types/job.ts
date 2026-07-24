@@ -66,6 +66,7 @@ export interface SiteResult {
   new: number;
   duplicates: number;
   error: string | null;
+  duration_seconds?: number;
 }
 
 export interface ScrapeProgress {
@@ -75,6 +76,8 @@ export interface ScrapeProgress {
   requested_sites: string[];
   classifying: boolean;
   classifying_count?: number;
+  elapsed_seconds?: number | null;
+  estimated_remaining_seconds?: number | null;
 }
 
 export interface ClassifierResult {
@@ -87,6 +90,7 @@ export interface ScrapeRun {
   id: number;
   started_at: string; // ISO 8601
   finished_at: string | null; // ISO 8601
+  duration_seconds: number | null;
   status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
   triggered_by: string;
   site_results: Record<string, SiteResult>;

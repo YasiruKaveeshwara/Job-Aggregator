@@ -95,12 +95,15 @@ def _run_migrations() -> None:
             cur.execute("ALTER TABLE job ADD COLUMN image_url TEXT")
             _logger.info("Migration: added 'image_url' to job table")
 
-        # ── ScrapeRun.progress ────────────────────────────────────
+        # ── ScrapeRun.progress & duration_seconds ─────────────────
         cur.execute("PRAGMA table_info(scraperun)")
         run_cols = {row[1] for row in cur.fetchall()}
         if "progress" not in run_cols:
             cur.execute("ALTER TABLE scraperun ADD COLUMN progress TEXT DEFAULT '{}'")
             _logger.info("Migration: added 'progress' to scraperun table")
+        if "duration_seconds" not in run_cols:
+            cur.execute("ALTER TABLE scraperun ADD COLUMN duration_seconds REAL")
+            _logger.info("Migration: added 'duration_seconds' to scraperun table")
 
         conn.commit()
         conn.close()

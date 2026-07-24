@@ -188,15 +188,12 @@ class HirelkScraper(BaseScraper):
         detail_url = data.get("detail_url") or ""
         logo_url = data.get("company_logo_url")
 
-        # Fetch full description from the detail page (has full_description_html)
-        description = self._fetch_detail_description(detail_url, fallback=fallback_desc)
-
         return RawJobPosting(
             job_title=title,
             company_name=company,
             location_raw=location_raw,
             salary_raw=None,
-            description_raw=description,
+            description_raw=fallback_desc,
             posted_date_raw=posted_date_raw,
             source_url=detail_url,
             image_url=logo_url,

@@ -85,6 +85,7 @@ class ScrapeRun(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc)
     )
     finished_at: Optional[datetime] = None
+    duration_seconds: Optional[float] = None
 
     # RUNNING | COMPLETED | FAILED | CANCELLED
     status: str = "RUNNING"

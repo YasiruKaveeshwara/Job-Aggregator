@@ -212,9 +212,7 @@ class TopjobsScraper(BaseScraper):
         else:
             source_url = _SEARCH_URL
 
-        # Fetch full description from the detail page
-        description = self._fetch_detail_description(source_url, fallback=description)
-
+        # Use table description snippet directly (lazy detail fetch will enrich if inserted)
         return RawJobPosting(
             job_title=title,
             company_name=company,

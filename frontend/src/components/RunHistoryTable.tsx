@@ -9,11 +9,24 @@ function RelativeDateCell({ iso }: { iso: string }) {
   return <>{value}</>;
 }
 
-function formatDuration(start: string, end: string | null): string {
-  if (!end) return "—";
-  const ms = new Date(end).getTime() - new Date(start).getTime();
-  const s = Math.round(ms / 1000);
-  return s < 60 ? `${s}s` : `${Math.round(s / 60)}m ${s % 60}s`;
+function parseUtc(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const formatted = (iso.endsWith("Z") || iso.includes("+") || iso.includes("-", 10)) ? iso : `${iso}Z`;
+  const ms = new Date(formatted).getTime();
+  return isNaN(ms) ? null : ms;
+}
+
+function formatDuration(run: ScrapeRun): string {
+  if (run.duration_seconds != null && run.duration_seconds > 0) {
+    const s = Math.round(run.duration_seconds);
+    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+  }
+  if (!run.finished_at) return "—";
+  const startMs = parseUtc(run.started_at);
+  const endMs = parseUtc(run.finished_at);
+  if (!startMs || !endMs) return "—";
+  const s = Math.round((endMs - startMs) / 1000);
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
 interface Props {
@@ -109,7 +122,7 @@ export default function RunHistoryTable({ refreshKey = 0 }: Props) {
 
               {/* Duration */}
               <td style={{ padding: "10px 12px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                {formatDuration(run.started_at, run.finished_at)}
+                {formatDuration(run)}
               </td>
 
               {/* Status */}

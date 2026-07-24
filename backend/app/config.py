@@ -68,15 +68,15 @@ USER_AGENT: str = os.getenv(
 )
 
 # ── Scraper HTTP settings ─────────────────────────────────────────────
-DEFAULT_RATE_LIMIT_SECONDS: float = _getenv_float("DEFAULT_RATE_LIMIT_SECONDS", 2.0)
-HTTP_TIMEOUT_SECONDS: float = _getenv_float("HTTP_TIMEOUT_SECONDS", 30.0)
+DEFAULT_RATE_LIMIT_SECONDS: float = _getenv_float("DEFAULT_RATE_LIMIT_SECONDS", 0.25)
+HTTP_TIMEOUT_SECONDS: float = _getenv_float("HTTP_TIMEOUT_SECONDS", 15.0)
 
 # ── Retry settings ────────────────────────────────────────────────────
 MAX_RETRIES: int = _getenv_int("MAX_RETRIES", 3)
 RETRY_BACKOFF_FACTOR: float = _getenv_float("RETRY_BACKOFF_FACTOR", 1.0)
 
 # ── Pagination limits (global caps shared by all paginated scrapers) ──
-SCRAPER_MAX_PAGES: int = _getenv_int("SCRAPER_MAX_PAGES", 10)
+SCRAPER_MAX_PAGES: int = _getenv_int("SCRAPER_MAX_PAGES", 2)
 SCRAPER_PAGE_SIZE: int = _getenv_int("SCRAPER_PAGE_SIZE", 20)
 
 # ── Deduplication ─────────────────────────────────────────────────────

@@ -102,12 +102,12 @@ class GovernmentjobScraper(BaseScraper):
                             )
 
                             try:
-                                page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                                page.wait_for_selector("main article", timeout=10000)
+                                page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                                page.wait_for_selector("main article, body", timeout=3000)
                             except Exception:
                                 logger.warning(
                                     "[%s] Browser load failed for query='%s' page %d",
-                                    self.platform_name, query, page_num, exc_info=True,
+                                    self.platform_name, query, page_num,
                                 )
                                 break
 
@@ -323,15 +323,14 @@ class GovernmentjobScraper(BaseScraper):
         description_parts = [part for part in [employment_type, salary] if part]
         card_description = " | ".join(description_parts)
 
-        # Fetch the detail page to get full vacancy description
-        full_description = self._fetch_detail_description(source_url, card_description)
+        description = card_description or f"{title} - {company}"
 
         return RawJobPosting(
             job_title=title,
             company_name=company,
             location_raw=location or "Sri Lanka",
             salary_raw=salary,
-            description_raw=full_description,
+            description_raw=description,
             posted_date_raw=posted_date,
             source_url=source_url,
             image_url=image_url,
