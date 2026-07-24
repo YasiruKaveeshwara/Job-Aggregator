@@ -58,8 +58,29 @@ def _getenv_list(key: str, default: list[str], sep: str = ",") -> list[str]:
     return [item.strip() for item in raw.split(sep) if item.strip()]
 
 
-# ── Database ──────────────────────────────────────────────────────────
-DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./jobs.db")
+import sys
+
+
+def _resolve_database_url() -> str:
+    # 1. An explicit .env value always wins, for both web app and desktop dev use.
+    env_value = os.getenv("DATABASE_URL")
+    if env_value:
+        return env_value
+
+    # 2. Running as a frozen PyInstaller executable — write to a per-user AppData
+    #    folder instead of next to the (potentially read-only) installed program.
+    if getattr(sys, "frozen", False):
+        appdata = os.getenv("APPDATA", os.path.expanduser("~"))
+        data_dir = os.path.join(appdata, "JobAggregator")
+        os.makedirs(data_dir, exist_ok=True)
+        db_path = os.path.join(data_dir, "jobs.db")
+        return f"sqlite:///{db_path}"
+
+    # 3. Normal web-app / dev-mode default — unchanged from before.
+    return "sqlite:///./jobs.db"
+
+
+DATABASE_URL: str = _resolve_database_url()
 
 # ── HTTP / User-Agent ─────────────────────────────────────────────────
 USER_AGENT: str = os.getenv(

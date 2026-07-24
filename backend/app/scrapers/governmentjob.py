@@ -80,6 +80,8 @@ class GovernmentjobScraper(BaseScraper):
         try:
             with sync_playwright() as playwright:
                 browser = self._launch_browser(playwright)
+                if browser is None:
+                    return []
                 try:
                     page = browser.new_page(
                         user_agent=(
@@ -126,15 +128,15 @@ class GovernmentjobScraper(BaseScraper):
                                     results.append(job)
                                     new_jobs += 1
 
-                            logger.info(
-                                "[%s] Query '%s' page %d → %d new (total: %d)",
-                                self.platform_name, query, page_num, new_jobs, len(results),
+                            logger.debug(
+                                "[%s] query='%s' page %d → %d jobs (%d new)",
+                                self.platform_name, query, page_num, len(page_results), new_jobs,
                             )
                 finally:
                     browser.close()
         except Exception:
             logger.warning(
-                "[%s] Browser search fetch failed",
+                "[%s] Playwright search failed — falling back",
                 self.platform_name,
                 exc_info=True,
             )
@@ -148,23 +150,24 @@ class GovernmentjobScraper(BaseScraper):
         return results
 
     def _launch_browser(self, playwright):
-        """Launch a Chromium browser using the best available local install."""
+        """Launch a system browser (preferring Edge channel) without requiring bundled Chromium."""
         launch_options = [
-            {},
             {"channel": "msedge"},
             {"channel": "chrome"},
+            {},
         ]
 
-        last_error: Exception | None = None
         for options in launch_options:
             try:
                 return playwright.chromium.launch(headless=True, **options)
-            except Exception as exc:
-                last_error = exc
+            except Exception:
+                continue
 
-        if last_error:
-            raise last_error
-        raise RuntimeError("Could not launch a browser")
+        logger.warning(
+            "Could not launch system Microsoft Edge for governmentjob.lk — "
+            "falling back to the WP-API/HTML path for this run."
+        )
+        return None
 
     # ── WP REST API approach ─────────────────────────────────────────
 
