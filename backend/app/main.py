@@ -111,3 +111,16 @@ app.include_router(settings.router)
 def health_check():
     """Simple liveness probe."""
     return {"status": "ok"}
+
+
+# ── Static Frontend Mount ────────────────────────────────────────────
+
+import os
+from fastapi.staticfiles import StaticFiles
+
+_FRONTEND_BUILD_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "..", "frontend", "out"
+)
+
+if os.path.isdir(_FRONTEND_BUILD_DIR):
+    app.mount("/", StaticFiles(directory=_FRONTEND_BUILD_DIR, html=True), name="frontend")
