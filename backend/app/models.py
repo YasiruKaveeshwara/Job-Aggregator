@@ -138,3 +138,15 @@ class SearchLocation(SQLModel, table=True):
     location: str = Field(unique=True, index=True)  # e.g. "colombo", "remote"
     enabled: bool = True
 
+
+class Setting(SQLModel, table=True):
+    """A simple key/value store for runtime-configurable secrets and settings.
+
+    Checked BEFORE environment variables by secrets.py's get_secret(). Lets the
+    desktop app (and the web app, if you want) store an API key entered through
+    the Settings screen instead of requiring a .env file.
+    """
+
+    key: str = Field(primary_key=True)
+    value: str
+

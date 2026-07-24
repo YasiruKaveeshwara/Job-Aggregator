@@ -20,9 +20,10 @@ from typing import Optional
 
 from sqlmodel import Session
 
-from app.config import GEMINI_API_KEY, GEMINI_BATCH_SIZE, GEMINI_MODEL
+from app.config import GEMINI_BATCH_SIZE, GEMINI_MODEL
 from app.db import engine
 from app.models import Job
+from app.secrets import get_secret
 
 logger = logging.getLogger(__name__)
 
@@ -123,8 +124,14 @@ def classify_new_jobs(job_ids: list[int]) -> dict[str, int]:
     if not remaining_jobs:
         return {"kept": 0, "removed": total_removed, "skipped": 0}
 
-    if not GEMINI_API_KEY:
-        logger.info("[classifier] GEMINI_API_KEY not set — skipping AI classification for remaining %d jobs", len(remaining_jobs))
+    api_key = get_secret("GEMINI_API_KEY")
+    if not api_key:
+        logger.warning(
+            "GEMINI_API_KEY is not configured — skipping AI classification for remaining %d jobs. "
+            "Postings will still be saved, just without AI filtering. "
+            "Add a key on the Settings screen to enable this.",
+            len(remaining_jobs),
+        )
         return {"kept": len(remaining_jobs), "removed": total_removed, "skipped": 0}
 
     # 3. Process remaining jobs in batches with Gemini AI
@@ -187,7 +194,8 @@ def _classify_batch_single_model(jobs: list[Job], model_name: str) -> Optional[d
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=GEMINI_API_KEY)
+        api_key = get_secret("GEMINI_API_KEY")
+        client = genai.Client(api_key=api_key)
         job_entries = [{"id": j.id, "title": j.job_title, "company": j.company_name} for j in jobs]
         prompt = _USER_PROMPT_TEMPLATE.format(jobs_json=json.dumps(job_entries, ensure_ascii=False))
         full_prompt = f"{_SYSTEM_PROMPT}\n\n{prompt}"
