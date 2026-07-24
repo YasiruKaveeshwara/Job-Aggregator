@@ -6,9 +6,11 @@ import ScrapeControlPanel from "@/components/ScrapeControlPanel";
 import RunHistoryTable from "@/components/RunHistoryTable";
 import KeywordEditor from "@/components/KeywordEditor";
 import SearchLocationEditor from "@/components/SearchLocationEditor";
+import SettingsPanel from "@/components/SettingsPanel";
 
 const SECTIONS = [
   { id: "sources", label: "Sources & Scrape Control" },
+  { id: "settings", label: "Settings" },
   { id: "keywords", label: "Keywords" },
   { id: "locations", label: "Locations" },
   { id: "history", label: "Run History" },
@@ -20,6 +22,12 @@ function SectionIcon({ id }: { id: string }) {
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.25" />
         <circle cx="8" cy="8" r="2.5" fill="currentColor" opacity="0.5" />
+      </svg>
+    ),
+    settings: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.75 3.75l1.06 1.06M11.19 11.19l1.06 1.06M3.75 12.25l1.06-1.06M11.19 4.81l1.06-1.06" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+        <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.25" />
       </svg>
     ),
     keywords: (
@@ -94,7 +102,7 @@ export default function AdminPage() {
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ marginBottom: 6 }}>Admin Portal</h1>
         <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-          Trigger scrape runs, manage sources, configure keywords and locations.
+          Trigger scrape runs, manage sources, configure settings, keywords and locations.
         </p>
       </div>
 
@@ -110,6 +118,12 @@ export default function AdminPage() {
               loadSources();
             }}
           />
+        </section>
+
+        {/* Application Settings */}
+        <section className="card" style={{ padding: "20px 24px" }}>
+          <SectionHeader id="settings" title="Application Settings" />
+          <SettingsPanel />
         </section>
 
         {/* Keywords */}
