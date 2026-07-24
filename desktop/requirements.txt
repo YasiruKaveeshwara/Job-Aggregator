@@ -1,1 +1,4 @@
-# Desktop requirements placeholder (will be populated in Phase 8)
+-r ../backend/requirements.txt
+pywebview
+pyinstaller
+pyinstaller-hooks-contrib
