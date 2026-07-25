@@ -5,6 +5,11 @@ import Nav from "@/components/Nav";
 export const metadata: Metadata = {
   title: "Job Aggregator — Sri Lanka Tech Jobs",
   description: "Personal software engineering job dashboard aggregating listings from multiple Sri Lankan job boards",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/icon.png",
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

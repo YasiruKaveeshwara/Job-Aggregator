@@ -61,30 +61,18 @@ export default function Nav() {
 						gap: 12,
 						textDecoration: "none",
 					}}>
-					<div
+					<img
+						src='/logo.png'
+						alt='JobAggregator Logo'
+						width={36}
+						height={36}
 						style={{
-							width: 36,
-							height: 36,
 							borderRadius: "10px",
-							background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							flexShrink: 0,
+							objectFit: "cover",
 							boxShadow: "0 2px 10px rgba(79, 70, 229, 0.3)",
-						}}>
-						<svg width='20' height='20' viewBox='0 0 24 24' fill='none'>
-							<path
-								d='M12 2L2 7L12 12L22 7L12 2Z'
-								stroke='white'
-								strokeWidth='2'
-								strokeLinecap='round'
-								strokeLinejoin='round'
-							/>
-							<path d='M2 17L12 22L22 17' stroke='white' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
-							<path d='M2 12L12 17L22 12' stroke='white' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
-						</svg>
-					</div>
+							flexShrink: 0,
+						}}
+					/>
 					<div>
 						<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
 							<span
