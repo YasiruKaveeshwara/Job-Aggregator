@@ -1,4 +1,5 @@
 "use client";
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getJobs, updateJobState, removeJob, getSources } from "@/lib/api";
 import { useLiveRelativeTime } from "@/lib/datetime";
@@ -13,9 +14,9 @@ function Spinner() {
     <div
       className="spin"
       style={{
-        width: 28,
-        height: 28,
-        border: "2.5px solid var(--border)",
+        width: 32,
+        height: 32,
+        border: "3px solid var(--border)",
         borderTopColor: "var(--accent)",
         borderRadius: "50%",
       }}
@@ -23,27 +24,55 @@ function Spinner() {
   );
 }
 
-function StatPill({ value, label, color }: { value: number; label: string; color: string }) {
+function StatCard({
+  value,
+  label,
+  icon,
+  gradient,
+}: {
+  value: string | number;
+  label: string;
+  icon: React.ReactNode;
+  gradient: string;
+}) {
   return (
     <div
       style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        padding: "10px 20px",
         background: "var(--bg-surface)",
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-md)",
+        padding: "14px 18px",
+        display: "flex",
+        alignItems: "center",
+        gap: "14px",
         boxShadow: "var(--shadow-xs)",
-        minWidth: 90,
+        minWidth: "160px",
       }}
     >
-      <span style={{ fontSize: 22, fontWeight: 800, color, letterSpacing: "-0.04em", lineHeight: 1 }}>
-        {value.toLocaleString()}
-      </span>
-      <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 3 }}>
-        {label}
-      </span>
+      <div
+        style={{
+          width: "40px",
+          height: "40px",
+          borderRadius: "10px",
+          background: gradient,
+          color: "#ffffff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          boxShadow: "0 2px 8px rgba(79, 70, 229, 0.2)",
+        }}
+      >
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: "20px", fontWeight: "800", color: "var(--text-primary)", letterSpacing: "-0.04em", lineHeight: 1.1 }}>
+          {typeof value === "number" ? value.toLocaleString() : value}
+        </div>
+        <span style={{ fontSize: "11px", fontWeight: "600", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "3px", display: "block" }}>
+          {label}
+        </span>
+      </div>
     </div>
   );
 }
@@ -74,40 +103,48 @@ export default function DashboardPage() {
 
   const [roleOptions, setRoleOptions] = useState<string[]>([]);
 
-  const loadJobs = useCallback(async (pg: number) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [pageData, srcData] = await Promise.all([
-        getJobs({
-          state: filterState || undefined,
-          source: filterSource || undefined,
-          role_match: filterRole || undefined,
-          q: debouncedQ || undefined,
-          date_from: filterDateFrom || undefined,
-          date_to: filterDateTo || undefined,
-          page: pg,
-          page_size: PAGE_SIZE,
-        }),
-        getSources(),
-      ]);
-      setJobs(pageData.jobs);
-      setTotal(pageData.total);
-      setTotalPages(pageData.total_pages);
-      setSources(srcData);
-      if (pg === 1) {
-        const roles = [...new Set(pageData.jobs.map((j) => j.role_match))].sort();
-        setRoleOptions(roles);
+  const loadJobs = useCallback(
+    async (pg: number) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [pageData, srcData] = await Promise.all([
+          getJobs({
+            state: filterState || undefined,
+            source: filterSource || undefined,
+            role_match: filterRole || undefined,
+            q: debouncedQ || undefined,
+            date_from: filterDateFrom || undefined,
+            date_to: filterDateTo || undefined,
+            page: pg,
+            page_size: PAGE_SIZE,
+          }),
+          getSources(),
+        ]);
+        setJobs(pageData.jobs);
+        setTotal(pageData.total);
+        setTotalPages(pageData.total_pages);
+        setSources(srcData);
+        if (pg === 1) {
+          const roles = [...new Set(pageData.jobs.map((j) => j.role_match))].sort();
+          setRoleOptions(roles);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
+    },
+    [filterState, filterSource, filterRole, debouncedQ, filterDateFrom, filterDateTo]
+  );
+
+  useEffect(() => {
+    setPage(1);
   }, [filterState, filterSource, filterRole, debouncedQ, filterDateFrom, filterDateTo]);
 
-  useEffect(() => { setPage(1); }, [filterState, filterSource, filterRole, debouncedQ, filterDateFrom, filterDateTo]);
-  useEffect(() => { void loadJobs(page); }, [loadJobs, page]);
+  useEffect(() => {
+    void loadJobs(page);
+  }, [loadJobs, page]);
 
   const latestSource = sources
     .filter((s) => s.last_scraped_at)
@@ -144,35 +181,35 @@ export default function DashboardPage() {
 
   const isFiltered = !!(filterState || filterSource || filterRole || debouncedQ || filterDateFrom || filterDateTo);
 
-  // Error state
   if (error) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-        <div style={{ textAlign: "center", maxWidth: 400 }}>
+        <div style={{ textAlign: "center", maxWidth: 420, padding: "32px", background: "var(--bg-surface)", border: "1px solid var(--red-border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-md)" }}>
           <div
             style={{
               width: 56,
               height: 56,
-              borderRadius: "var(--radius-lg)",
+              borderRadius: "var(--radius-md)",
               background: "var(--red-bg)",
-              border: "1px solid var(--red-border)",
+              color: "var(--red)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               margin: "0 auto 16px",
             }}
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="9" stroke="var(--red)" strokeWidth="1.5" />
-              <path d="M12 8v4M12 16h.01" stroke="var(--red)" strokeWidth="1.5" strokeLinecap="round" />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
           </div>
-          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: "var(--text-primary)" }}>
-            Failed to load
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: "var(--text-primary)" }}>
+            Unable to fetch listings
           </h2>
           <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>{error}</p>
           <button className="btn btn-primary" onClick={() => loadJobs(page)}>
-            Try again
+            Retry Connection
           </button>
         </div>
       </div>
@@ -180,43 +217,77 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container" style={{ paddingTop: 28, paddingBottom: 40 }}>
-
-      {/* Page header */}
+    <div className="container" style={{ paddingTop: 32, paddingBottom: 64, maxWidth: "1200px" }}>
+      {/* Executive Dashboard Hero Banner */}
       <div
         style={{
+          marginBottom: 28,
+          background: "linear-gradient(135deg, rgba(79, 70, 229, 0.06) 0%, rgba(59, 130, 246, 0.06) 100%)",
+          border: "1px solid var(--accent-border)",
+          borderRadius: "var(--radius-lg)",
+          padding: "24px 28px",
           display: "flex",
-          alignItems: "flex-start",
+          alignItems: "center",
           justifyContent: "space-between",
-          gap: 16,
-          marginBottom: 24,
+          gap: 20,
           flexWrap: "wrap",
+          boxShadow: "var(--shadow-xs)",
         }}
       >
         <div>
-          <h1 style={{ marginBottom: 6 }}>Job Dashboard</h1>
-          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            {isFiltered
-              ? `${total} result${total !== 1 ? "s" : ""} matching your filters`
-              : `${total.toLocaleString()} tech job${total !== 1 ? "s" : ""} aggregated`}
-            {latestSource?.last_scraped_at && (
-              <> &middot; Last fetched <span style={{ color: "var(--text-secondary)" }}>{latestFetchedLabel}</span></>
-            )}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: "var(--accent)",
+                background: "var(--accent-dim)",
+                border: "1px solid var(--accent-border)",
+                padding: "3px 10px",
+                borderRadius: "9999px",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+              }}
+            >
+              Sri Lanka Tech Jobs
+            </span>
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em", margin: 0 }}>
+            Software Job Aggregator
+          </h1>
+          <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4, maxWidth: "580px" }}>
+            Real-time software engineering job listings collected across top Sri Lankan job boards with AI classification & application tracking.
           </p>
         </div>
 
-        {/* Stat pills */}
-        {!isFiltered && total > 0 && (
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <StatPill value={total} label="Total" color="var(--accent)" />
-            {totalPages > 1 && (
-              <StatPill value={page} label={`of ${totalPages} pages`} color="var(--text-secondary)" />
-            )}
-          </div>
-        )}
+        {/* Live Metrics HUD Cards */}
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <StatCard
+            value={total}
+            label={isFiltered ? "Filtered Results" : "Aggregated Jobs"}
+            gradient="linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)"
+            icon={
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+              </svg>
+            }
+          />
+          <StatCard
+            value={latestFetchedLabel || "Never"}
+            label="Latest Sync"
+            gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)"
+            icon={
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            }
+          />
+        </div>
       </div>
 
-      {/* Filters */}
+      {/* Filter Bar */}
       <FilterBar
         sources={sources}
         roleOptions={roleOptions}
@@ -234,7 +305,7 @@ export default function DashboardPage() {
         onDateToChange={setFilterDateTo}
       />
 
-      {/* Content */}
+      {/* Main Content Area */}
       {loading ? (
         <div
           style={{
@@ -247,9 +318,8 @@ export default function DashboardPage() {
           }}
         >
           <Spinner />
-          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>Loading jobs...</p>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: "500" }}>Loading job listings...</p>
         </div>
-
       ) : jobs.length === 0 && !isFiltered ? (
         /* Empty state — no jobs in DB */
         <div
@@ -260,6 +330,10 @@ export default function DashboardPage() {
             justifyContent: "center",
             padding: "80px 20px",
             textAlign: "center",
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-lg)",
+            marginTop: 20,
           }}
         >
           <div
@@ -273,24 +347,29 @@ export default function DashboardPage() {
               alignItems: "center",
               justifyContent: "center",
               marginBottom: 20,
+              color: "var(--accent)",
             }}
           >
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-              <rect x="4" y="6" width="24" height="3" rx="1.5" fill="var(--accent)" opacity="0.8" />
-              <rect x="4" y="13" width="18" height="3" rx="1.5" fill="var(--accent)" opacity="0.5" />
-              <rect x="4" y="20" width="21" height="3" rx="1.5" fill="var(--accent)" opacity="0.8" />
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+              <line x1="12" y1="22.08" x2="12" y2="12" />
             </svg>
           </div>
-          <h2 style={{ marginBottom: 10, color: "var(--text-primary)" }}>No jobs yet</h2>
-          <p style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 380, lineHeight: 1.7, marginBottom: 24 }}>
-            Head to the{" "}
-            <a href="/admin" style={{ color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: 2 }}>
+          <h2 style={{ marginBottom: 10, color: "var(--text-primary)", fontSize: "18px", fontWeight: "700" }}>
+            No Job Listings Found
+          </h2>
+          <p style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 420, lineHeight: 1.7, marginBottom: 24 }}>
+            Your local database has no jobs yet. Open the{" "}
+            <a href="/admin" style={{ color: "var(--accent)", fontWeight: "600", textDecoration: "underline" }}>
               Admin Portal
             </a>{" "}
-            and run a fetch to pull jobs from your configured sources.
+            to trigger your first job fetch across Sri Lankan platforms.
           </p>
+          <a href="/admin" className="btn btn-primary" style={{ padding: "10px 24px", fontSize: "13px" }}>
+            Go to Admin Portal
+          </a>
         </div>
-
       ) : jobs.length === 0 ? (
         /* No results for current filter */
         <div
@@ -298,8 +377,12 @@ export default function DashboardPage() {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            padding: "60px 20px",
+            padding: "70px 20px",
             textAlign: "center",
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-lg)",
+            marginTop: 20,
           }}
         >
           <div
@@ -313,34 +396,31 @@ export default function DashboardPage() {
               alignItems: "center",
               justifyContent: "center",
               marginBottom: 16,
+              color: "var(--text-muted)",
             }}
           >
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <circle cx="12" cy="12" r="8.5" stroke="var(--text-muted)" strokeWidth="1.5" />
-              <path d="M18 18l5 5" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" />
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </div>
-          <h2 style={{ marginBottom: 8, color: "var(--text-primary)" }}>No results found</h2>
-          <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 340 }}>
-            Try adjusting your filters, or clear them to see all jobs.
+          <h2 style={{ marginBottom: 8, color: "var(--text-primary)", fontSize: "16px", fontWeight: "700" }}>
+            No matching jobs found
+          </h2>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 360 }}>
+            Try broadening your search term or clearing location and role filters.
           </p>
         </div>
-
       ) : (
         <>
-          {/* Job list */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {/* Job List Container */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {jobs.map((job) => (
-              <JobCard
-                key={job.id}
-                job={job}
-                onStateChange={handleStateChange}
-                onRemove={handleRemove}
-              />
+              <JobCard key={job.id} job={job} onStateChange={handleStateChange} onRemove={handleRemove} />
             ))}
           </div>
 
-          {/* Pagination */}
+          {/* Pagination Controls */}
           {totalPages > 1 && (
             <div
               style={{
@@ -375,10 +455,7 @@ export default function DashboardPage() {
                 }, [])
                 .map((item, idx) =>
                   item === "…" ? (
-                    <span
-                      key={`ellipsis-${idx}`}
-                      style={{ color: "var(--text-muted)", fontSize: 13, padding: "0 4px" }}
-                    >
+                    <span key={`ellipsis-${idx}`} style={{ color: "var(--text-muted)", fontSize: 13, padding: "0 4px" }}>
                       &hellip;
                     </span>
                   ) : (
@@ -407,8 +484,8 @@ export default function DashboardPage() {
                 </svg>
               </button>
 
-              <span style={{ fontSize: 12, color: "var(--text-muted)", marginLeft: 6 }}>
-                {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} of {total.toLocaleString()}
+              <span style={{ fontSize: 12, color: "var(--text-muted)", marginLeft: 8 }}>
+                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total.toLocaleString()}
               </span>
             </div>
           )}
