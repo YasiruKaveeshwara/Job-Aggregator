@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Nav from "@/components/Nav";
+import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
-  title: "Job Aggregator — Sri Lanka Tech Jobs",
-  description: "Personal software engineering job dashboard aggregating listings from multiple Sri Lankan job boards",
+  title: "Job Aggregator — Sri Lanka Tech Jobs Engine",
+  description: "Software engineering job dashboard aggregating listings from major Sri Lankan job boards",
+  authors: [{ name: "Yasiru Kaveeshwara", url: "https://github.com/YasiruKaveeshwara" }],
+  creator: "Yasiru Kaveeshwara",
+  publisher: "Yasiru Kaveeshwara",
   icons: {
     icon: "/favicon.ico",
     shortcut: "/icon.png",
@@ -23,11 +27,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>
+      <body style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
         <Nav />
-        <main style={{ minHeight: "calc(100vh - var(--nav-height))", background: "var(--bg-base)" }}>
+        <main style={{ flex: 1, background: "var(--bg-base)" }}>
           {children}
         </main>
+        <Footer />
       </body>
     </html>
   );

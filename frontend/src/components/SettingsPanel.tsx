@@ -340,6 +340,72 @@ export default function SettingsPanel() {
           </div>
         </div>
       </div>
+
+      {/* Developer & System Metadata Card */}
+      <div
+        style={{
+          marginTop: "20px",
+          padding: "16px 20px",
+          background: "rgba(15, 23, 42, 0.03)",
+          borderRadius: "var(--radius-lg)",
+          border: "1px solid var(--border)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div
+            style={{
+              width: "40px",
+              height: "40px",
+              borderRadius: "10px",
+              background: "linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: "14px",
+            }}
+          >
+            YK
+          </div>
+          <div>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)" }}>
+              Created & Developed by Yasiru Kaveeshwara
+            </div>
+            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
+              Sri Lanka Tech Jobs Aggregation Engine • Contact: <a href="mailto:kaveeshwaray@gmail.com" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>kaveeshwaray@gmail.com</a>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", background: "var(--bg-surface)", padding: "4px 10px", borderRadius: "20px", border: "1px solid var(--border)" }}>
+            Version 1.0.0
+          </span>
+          <a
+            href="https://github.com/YasiruKaveeshwara/Job-Aggregator"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "var(--accent)",
+              textDecoration: "none",
+              background: "var(--bg-surface)",
+              padding: "4px 12px",
+              borderRadius: "20px",
+              border: "1px solid var(--border)",
+            }}
+          >
+            GitHub Repository ↗
+          </a>
+        </div>
+      </div>
     </div>
   );
 }
