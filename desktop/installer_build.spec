@@ -1,5 +1,5 @@
 # desktop/installer_build.spec
-# Bundles the compiled JobAggregator app folder into payload/ and produces JobAggregatorSetup.exe
+# Bundles payload (compressed payload.zip or dist/JobAggregator folder) into JobAggregatorSetup.exe
 
 import os
 
@@ -7,12 +7,16 @@ block_cipher = None
 
 icon_param = "icon.ico" if os.path.exists("icon.ico") else None
 
+payload_is_zip = os.path.exists("dist/payload.zip")
+payload_src = "dist/payload.zip" if payload_is_zip else "dist/JobAggregator"
+payload_dst_name = "." if payload_is_zip else "payload"
+
 a = Analysis(
     ["installer_gui.py"],
     pathex=["."],
     binaries=[],
     datas=[
-        ("dist/JobAggregator", "payload"),
+        (payload_src, payload_dst_name),
     ],
     hiddenimports=[],
     hookspath=[],

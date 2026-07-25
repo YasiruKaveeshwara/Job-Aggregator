@@ -5,7 +5,12 @@
 import os
 from PyInstaller.utils.hooks import collect_data_files
 
-playwright_datas = collect_data_files("playwright")
+# Collect playwright datas but filter out non-essential docs/type definitions
+raw_playwright_datas = collect_data_files("playwright")
+playwright_datas = [
+    (src, dst) for src, dst in raw_playwright_datas
+    if not src.endswith((".d.ts", ".md", ".map", ".png", ".svg", ".html"))
+]
 
 block_cipher = None
 
@@ -35,7 +40,23 @@ a = Analysis(
     ],
     hookspath=[],
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        "tkinter",
+        "_tkinter",
+        "tcl",
+        "tk",
+        "unittest",
+        "doctest",
+        "pydoc",
+        "test",
+        "PIL._avif",
+        "PIL.EpsImagePlugin",
+        "PIL.PdfImagePlugin",
+        "PIL.SpiderImagePlugin",
+        "PIL.FtxImagePlugin",
+        "PIL.MicImagePlugin",
+        "PIL.McIdImagePlugin",
+    ],
     noarchive=False,
     cipher=block_cipher,
 )

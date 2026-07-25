@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+import zipfile
 from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
@@ -345,6 +346,36 @@ class SetupWizardGUI:
             formatted = ensure_job_aggregator_folder(chosen)
             self.install_dir_var.set(os.path.abspath(formatted))
 
+    def _find_payload_source(self):
+        base_dir = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+        exe_dir = os.path.dirname(sys.executable)
+        curr_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Check zip payload first (high compression)
+        zip_candidates = [
+            os.path.join(base_dir, "payload.zip"),
+            os.path.join(base_dir, "payload", "payload.zip"),
+            os.path.join(exe_dir, "payload.zip"),
+            os.path.join(curr_dir, "dist", "payload.zip"),
+            os.path.join(curr_dir, "payload.zip"),
+        ]
+        for z in zip_candidates:
+            if os.path.isfile(z):
+                return ("zip", z)
+
+        # Check dir payload fallback (uncompressed dev mode)
+        dir_candidates = [
+            os.path.join(base_dir, "payload"),
+            os.path.join(exe_dir, "payload"),
+            os.path.join(curr_dir, "dist", "JobAggregator"),
+            os.path.join(curr_dir, "payload"),
+        ]
+        for d in dir_candidates:
+            if os.path.isdir(d):
+                return ("dir", d)
+
+        return (None, None)
+
     def _start_installation_thread(self):
         target_dir = ensure_job_aggregator_folder(self.install_dir_var.get().strip())
         self.install_dir_var.set(target_dir)
@@ -353,22 +384,18 @@ class SetupWizardGUI:
             messagebox.showerror("Error", "Please select a valid installation directory.")
             return
 
-        source_payload = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dist", "JobAggregator")
-        if not os.path.isdir(source_payload):
-            base_dir = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
-            source_payload = os.path.join(base_dir, "payload")
-
-        if not os.path.isdir(source_payload):
+        payload_type, payload_path = self._find_payload_source()
+        if not payload_type:
             messagebox.showerror(
                 "Installation Error",
-                f"Could not locate JobAggregator application payload at:\n{source_payload}",
+                "Could not locate JobAggregator application bundle package.",
             )
             return
 
         self._build_installing_view()
 
         threading.Thread(
-            target=self._do_installation, args=(source_payload, target_dir), daemon=True
+            target=self._do_installation, args=(payload_type, payload_path, target_dir), daemon=True
         ).start()
 
     def _build_installing_view(self):
@@ -466,50 +493,65 @@ class SetupWizardGUI:
 
         self.root.after(100, self._process_ui_queue)
 
-    def _do_installation(self, source_payload: str, target_dir: str):
+    def _do_installation(self, payload_type: str, payload_path: str, target_dir: str):
         try:
             self._log(f"[INIT] Target Directory: {target_dir}", "Initializing target directory...")
             self._set_progress(5)
 
             os.makedirs(target_dir, exist_ok=True)
 
-            all_files = []
-            for root_dir, _, files in os.walk(source_payload):
-                for f in files:
-                    all_files.append(os.path.join(root_dir, f))
+            if payload_type == "zip":
+                self._log(f"[PAYLOAD] Unpacking compressed application archive: {os.path.basename(payload_path)}", "Extracting application binaries...")
+                with zipfile.ZipFile(payload_path, "r") as zf:
+                    infolist = zf.infolist()
+                    total_items = len(infolist)
+                    extracted_count = 0
 
-            total_items = len(all_files)
-            self._log(f"[PAYLOAD] Discovered {total_items} application bundle assets.", "Copying core application files...")
+                    for member in infolist:
+                        zf.extract(member, target_dir)
+                        extracted_count += 1
+                        pct = 10 + (extracted_count / max(1, total_items)) * 75
+                        self._set_progress(pct)
+                        if extracted_count % 15 == 0 or extracted_count == total_items:
+                            self._log(f"[EXTRACT] {member.filename}", f"Extracting {os.path.basename(member.filename)}...")
+            else:
+                all_files = []
+                for root_dir, _, files in os.walk(payload_path):
+                    for f in files:
+                        all_files.append(os.path.join(root_dir, f))
 
-            copied_count = 0
-            for item in os.listdir(source_payload):
-                s = os.path.join(source_payload, item)
-                d = os.path.join(target_dir, item)
+                total_items = len(all_files)
+                self._log(f"[PAYLOAD] Copying {total_items} application bundle files...", "Copying application files...")
 
-                if os.path.isdir(s):
-                    if os.path.exists(d):
-                        shutil.rmtree(d)
+                copied_count = 0
+                for item in os.listdir(payload_path):
+                    s = os.path.join(payload_path, item)
+                    d = os.path.join(target_dir, item)
 
-                    for root_d, _, files in os.walk(s):
-                        rel = os.path.relpath(root_d, s)
-                        dest_sub = os.path.join(d, rel)
-                        os.makedirs(dest_sub, exist_ok=True)
+                    if os.path.isdir(s):
+                        if os.path.exists(d):
+                            shutil.rmtree(d)
 
-                        for f in files:
-                            src_f = os.path.join(root_d, f)
-                            dst_f = os.path.join(dest_sub, f)
-                            shutil.copy2(src_f, dst_f)
-                            copied_count += 1
-                            pct = 10 + (copied_count / max(1, total_items)) * 70
-                            self._set_progress(pct)
-                            if copied_count % 15 == 0 or copied_count == total_items:
-                                self._log(f"[COPY] {os.path.relpath(dst_f, target_dir)}", f"Extracting {f}...")
-                else:
-                    shutil.copy2(s, d)
-                    copied_count += 1
-                    pct = 10 + (copied_count / max(1, total_items)) * 70
-                    self._set_progress(pct)
-                    self._log(f"[COPY] {item}", f"Copying {item}...")
+                        for root_d, _, files in os.walk(s):
+                            rel = os.path.relpath(root_d, s)
+                            dest_sub = os.path.join(d, rel)
+                            os.makedirs(dest_sub, exist_ok=True)
+
+                            for f in files:
+                                src_f = os.path.join(root_d, f)
+                                dst_f = os.path.join(dest_sub, f)
+                                shutil.copy2(src_f, dst_f)
+                                copied_count += 1
+                                pct = 10 + (copied_count / max(1, total_items)) * 75
+                                self._set_progress(pct)
+                                if copied_count % 15 == 0 or copied_count == total_items:
+                                    self._log(f"[COPY] {os.path.relpath(dst_f, target_dir)}", f"Copying {f}...")
+                    else:
+                        shutil.copy2(s, d)
+                        copied_count += 1
+                        pct = 10 + (copied_count / max(1, total_items)) * 75
+                        self._set_progress(pct)
+                        self._log(f"[COPY] {item}", f"Copying {item}...")
 
             exe_path = os.path.join(target_dir, "JobAggregator.exe")
             icon_path = os.path.join(target_dir, "_internal", "icon.ico")
@@ -530,7 +572,7 @@ class SetupWizardGUI:
             # Configure Debug Mode flag file
             debug_flag_file = os.path.join(target_dir, "debug_mode.flag")
             if self.debug_mode_var.get():
-                self._log("[CONFIG] Enabling Debug Mode (DevTools / Console Inspector)...", "Configuring Debug Mode...")
+                self._log("[CONFIG] Enabling Developer Mode (DevTools / Console Inspector)...", "Configuring Developer Mode...")
                 with open(debug_flag_file, "w", encoding="utf-8") as f:
                     f.write("DEBUG_ENABLED=1\n")
             else:
