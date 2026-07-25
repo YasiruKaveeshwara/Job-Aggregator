@@ -385,7 +385,7 @@ export default function SettingsPanel() {
 
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", background: "var(--bg-surface)", padding: "4px 10px", borderRadius: "20px", border: "1px solid var(--border)" }}>
-            Version 1.0.1
+            Version 1.1.0
           </span>
           <a
             href="https://github.com/YasiruKaveeshwara/Job-Aggregator"

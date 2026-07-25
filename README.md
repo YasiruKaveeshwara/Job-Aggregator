@@ -2,7 +2,7 @@
 
 > A full-stack, multi-source job aggregation, normalization, deduplication, and AI relevance classification engine built for Sri Lanka's software engineering job market.
 
-[![Release](https://img.shields.io/badge/Release-v1.0.1-blue.svg?logo=github)](https://github.com/YasiruKaveeshwara/Job-Aggregator/releases/tag/v1.0.1)
+[![Release](https://img.shields.io/badge/Release-v1.1.0-blue.svg?logo=github)](https://github.com/YasiruKaveeshwara/Job-Aggregator/releases/tag/v1.1.0)
 [![Download Windows Installer](https://img.shields.io/badge/Download-Windows%20Setup%20.exe-0078D4?logo=windows&logoColor=white)](https://github.com/YasiruKaveeshwara/Job-Aggregator/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](backend/README.md)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](frontend/README.md)
