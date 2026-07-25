@@ -51,7 +51,7 @@ exe = EXE(
     debug=False,
     strip=False,
     upx=True,
-    console=True,
+    console=False,  # Set console=False so terminal window does NOT open when launching app
     icon=icon_param,
 )
 

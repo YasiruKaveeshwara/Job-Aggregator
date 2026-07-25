@@ -1,60 +1,95 @@
-# Job Aggregator — Desktop Application File & Configuration Locations
+# Job Aggregator — Desktop Application & Setup Package
 
-Native Windows Desktop application for software engineering job aggregation in Sri Lanka.
-
----
-
-## 1. Database File Location (`jobs.db`)
-
-### For Desktop Application (`JobAggregatorSetup.exe` / `JobAggregator.exe`)
-The SQLite database file `jobs.db` is automatically created and stored at:
-```
-%APPDATA%\JobAggregator\jobs.db
-```
-*(Full path: `C:\Users\<YourUsername>\AppData\Roaming\JobAggregator\jobs.db`)*
-
-> 💡 **Migrating existing data**: If you have an existing `jobs.db` database from web development, copy and paste it into `C:\Users\<YourUsername>\AppData\Roaming\JobAggregator\jobs.db`.
-
-### For Backend / Web Development Mode
-Stored inside the backend folder:
-```
-backend/jobs.db
-```
+Native Windows desktop distribution for **Job Aggregator**. Embeds the FastAPI backend and static Next.js frontend into a PyWebview container with custom Windows Setup and Uninstall Wizards.
 
 ---
 
-## 2. API Keys & Configuration (`.env` vs Settings UI)
+## Key Architecture & Features
 
-### Desktop Application (Recommended: Settings UI)
-**You do NOT need a `.env` file for the desktop app.**
-1. Launch **Job Aggregator**.
-2. Open the **Admin Portal** (`/admin`).
-3. Under **Application Settings**, enter your **Gemini API Key** and click **Save**.
-4. The key is securely saved to your local `%APPDATA%\JobAggregator\jobs.db` database.
+- **PyWebview Native Container**: Launches FastAPI on a dynamic free local port and renders the UI in a native Windows webview window.
+- **Console Terminal Suppression**: `console=False` in `build.spec` prevents unwanted black command prompt windows from popping up when opening the app.
+- **Developer Mode Toggle**: Custom checkbox in installer GUI enables/disables DevTools inspector (F12) via a `debug_mode.flag` file.
+- **Persistent Data Storage**: SQLite database automatically initialized at `%APPDATA%\JobAggregator\jobs.db` (`C:\Users\<Username>\AppData\Roaming\JobAggregator\jobs.db`).
+- **Windows Security & Unblocking**: Includes automated PowerShell `Unblock-File` execution during setup to remove Zone.Identifier alternate data streams.
+- **Standard Windows Installation & Uninstallation**:
+  - Registered under Windows Registry (`HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\JobAggregator`).
+  - Appears in **Windows Settings > Apps** & **Control Panel**.
+  - Custom Uninstall Wizard GUI (`uninstall.exe`) handles clean file removal, shortcut cleanup, optional database purging, and safe self-deletion via `%TEMP%`.
 
-*(Optional)* If you wish to use a `.env` file override, place your `.env` file alongside the executable:
-- **Installed App**: `%LOCALAPPDATA%\Programs\JobAggregator\.env`
-- **Portable App**: `desktop/dist/JobAggregator/.env`
+---
 
-### Web Development Mode
-Placed inside the backend root folder:
-```
-backend/.env
+## App Lifecycle & Termination
+
+Closing the main application window (clicking X or `Alt+F4`) gracefully terminates the PyWebview container, stops the Uvicorn server thread, releases socket bindings, and exits the process completely. No background services or system tray icons linger in Task Manager.
+
+---
+
+## Installation & Launch Options
+
+### Option 1: Standard One-Click Installer (`JobAggregatorSetup.exe`)
+Double-click `JobAggregatorSetup.exe` in `desktop/dist/`. The setup wizard presents a 3-step modern GUI:
+1. Destination folder selection (automatically formats path to append `\JobAggregator`).
+2. Option checkbuttons for Desktop shortcut, Start Menu shortcut, and Developer Mode.
+3. Live real-time installation progress bar and log console.
+
+### Option 2: Batch Launcher (`start.bat` / `install.bat`)
+- **`start.bat`**: Direct 1-click launcher for portable/dev builds. Unblocks binary alternate data streams and launches `JobAggregator.exe`.
+- **`install.bat`**: Unblocks binary files and launches `JobAggregatorSetup.exe`.
+
+---
+
+## Uninstallation
+
+Uninstalling can be performed via two equivalent methods:
+1. **Windows Settings**: Open **Settings → Apps → Installed apps → Job Aggregator** → click **Uninstall**.
+2. **Direct Execution**: Run `uninstall.exe` inside the installed application directory (`%LOCALAPPDATA%\Programs\JobAggregator\uninstall.exe`).
+
+The uninstall wizard presents a confirmation view, progress bar, log console, and an optional checkbox:
+`[ ] Delete saved job database & settings (jobs.db, API keys)` (unchecked by default to preserve job history upon reinstall).
+
+---
+
+## 4-Step Build Sequence from Source
+
+To compile the entire desktop distribution package from scratch, execute the following steps in order from the `desktop/` directory:
+
+```powershell
+cd desktop
+pip install -r requirements.txt
+
+# Step 1: Build the main application payload (onedir)
+python -m PyInstaller -y build.spec
+# -> Generates dist/JobAggregator/ (contains JobAggregator.exe & dependencies)
+
+# Step 2: Build the standalone uninstaller wizard (onefile)
+python -m PyInstaller -y uninstaller_build.spec
+# -> Generates dist/uninstall.exe
+
+# Step 3: Bundle uninstaller into the main app payload
+copy dist\uninstall.exe dist\JobAggregator\uninstall.exe
+
+# Step 4: Build the single setup wizard installer
+python -m PyInstaller -y installer_build.spec
+# -> Generates dist/JobAggregatorSetup.exe
 ```
 
 ---
 
-## Installation & Launch
+## Artifact Locations Summary
 
-### Option A: Using `install.bat` (Recommended if Windows Smart App Control is enabled)
-1. Double-click **[install.bat](file:///d:/My%20GitHub/Job-Aggregator/desktop/install.bat)** inside the `desktop/` folder.
-2. It will automatically unblock the executable binaries and launch `JobAggregatorSetup.exe`.
+| File / Folder | Location |
+| :--- | :--- |
+| **Setup Installer Executable** | `desktop/dist/JobAggregatorSetup.exe` |
+| **Standalone App Directory** | `desktop/dist/JobAggregator/` |
+| **Main Executable** | `desktop/dist/JobAggregator/JobAggregator.exe` |
+| **Uninstaller Executable** | `desktop/dist/JobAggregator/uninstall.exe` |
+| **Installed App Target** | `%LOCALAPPDATA%\Programs\JobAggregator\` |
+| **Database File (`jobs.db`)** | `%APPDATA%\JobAggregator\jobs.db` |
 
-### Option B: Manual Installation
-1. Right-click **`JobAggregatorSetup.exe`** inside `desktop/dist/` -> **Properties**.
-2. Check **Unblock** at the bottom of the General tab, then click **Apply** / **OK**.
-3. Double-click **`JobAggregatorSetup.exe`** to install.
+---
 
-### Option C: Portable / Direct Launch (`start.bat`)
-Double-click **[start.bat](file:///d:/My%20GitHub/Job-Aggregator/desktop/start.bat)** inside the `desktop/` folder to run the standalone app without installing.
+## Integration with Sub-projects
 
+- **[Backend Engine](../backend/README.md)**: Embedded FastAPI server running behind PyWebview.
+- **[Frontend Web App](../frontend/README.md)**: Compiled static export (`frontend/out`) rendered inside PyWebview.
+- **[Root Documentation](../README.md)**: Master repository architecture overview.

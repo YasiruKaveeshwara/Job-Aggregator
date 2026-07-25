@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Job Aggregator — Frontend Web Application
 
-## Getting Started
+Modern Next.js 16 frontend for **Job Aggregator**. Features a sleek, responsive dashboard for browsing Sri Lankan software engineering job listings, managing job application statuses, triggering live scraping pipelines, and configuring Gemini AI relevance settings.
 
-First, run the development server:
+---
+
+## Tech Stack & Architecture
+
+- **Framework**: Next.js 16 (App Router)
+- **UI & Logic**: React 19, TypeScript
+- **Design System**: Vanilla CSS tokens in `globals.css` with dark glassmorphism aesthetic, sleek gradients, and micro-animations.
+- **Static Export**: Built with `output: "export"` (`trailingSlash: true`) generating static HTML/CSS/JS in `frontend/out` for bundling into the PyWebview desktop app.
+- **Dual API Origin Resolution**: `getApiBaseUrl()` in `lib/api.ts` automatically routes requests to `http://localhost:8000` during Next.js web dev mode (port 3000/3001), and falls back to `window.location.origin` in PyWebview desktop mode.
+
+---
+
+## Page Routes & Core Components
+
+### App Routes (`src/app/`)
+- `/` - **Dashboard Page**: Search filters, role dropdowns, live stats HUD, job cards, and pagination.
+- `/admin` - **Admin Portal**: Executive control center with sections for *Sources & Scrape Control*, *Gemini AI Credentials*, *Target Keywords*, *Locations*, and *Scrape Run History*.
+
+### Components (`src/components/`)
+- `Nav.tsx`: Glassmorphic top navigation bar with brand logo mark and active step pills.
+- `JobCard.tsx`: Job listing card with company initials, platform badge, role tags, and application state dropdown.
+- `FilterBar.tsx`: Search query, role selector, platform source chips, and date range inputs.
+- `ScrapeControlPanel.tsx`: Live fetch operations HUD displaying real-time elapsed timer, estimated remaining duration, animated progress bar, site execution chips, and AI classification stats.
+- `SettingsPanel.tsx`: Sleek Gemini API key card with status liveness pill, password mask view toggle, and Google AI Studio guide link.
+- `KeywordEditor.tsx`: Target job title keyword management and negative exclusion terms.
+- `SearchLocationEditor.tsx`: Target district geographic location preferences.
+- `RunHistoryTable.tsx`: Detailed audit log table of past scrape executions.
+
+---
+
+## Quick Start & Setup
+
+### Prerequisites
+- Node.js 18+
+
+### 1. Installation
+
+```bash
+cd frontend
+npm install
+```
+
+### 2. Development Mode
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
+Open [http://localhost:3000](http://localhost:3000) in your browser. (Ensure backend server is running on port 8000).
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Production Static Build
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build
+```
+Generates production static export files in `frontend/out`, ready for deployment or desktop bundling.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Integration with Sub-projects
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **[Backend Engine](../backend/README.md)**: FastAPI REST service powering job aggregation and LLM filtering.
+- **[Desktop App](../desktop/README.md)**: PyWebview native container embedding the static frontend export.
+- **[Root Documentation](../README.md)**: Master repository architecture overview.
