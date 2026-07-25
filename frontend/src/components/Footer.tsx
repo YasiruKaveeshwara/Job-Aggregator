@@ -41,7 +41,7 @@ export default function Footer() {
 						Job Aggregator
 					</span>
 					<span style={{ fontSize: "11px", fontWeight: 600, color: "#0284c7", background: "#e0f2fe", padding: "2px 8px", borderRadius: "12px", border: "1px solid #bae6fd" }}>
-						v1.0.0
+						v1.0.1
 					</span>
 				</div>
 

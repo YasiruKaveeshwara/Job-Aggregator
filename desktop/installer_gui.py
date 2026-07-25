@@ -109,7 +109,7 @@ def register_uninstaller(install_dir: str, exe_path: str):
             winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, "Yasiru Kaveeshwara")
             winreg.SetValueEx(key, "Contact", 0, winreg.REG_SZ, "kaveeshwaray@gmail.com")
             winreg.SetValueEx(key, "HelpLink", 0, winreg.REG_SZ, "https://github.com/YasiruKaveeshwara/Job-Aggregator")
-            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.0.0")
+            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.0.1")
             winreg.SetValueEx(key, "InstallLocation", 0, winreg.REG_SZ, install_dir)
             winreg.SetValueEx(key, "NoModify", 0, winreg.REG_DWORD, 1)
             winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 1)
