@@ -4,7 +4,7 @@ endpoints) check which secrets are configured and save new ones — WITHOUT ever
 exposing the real value back over the API once it has been saved.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.secrets import set_secret, is_secret_configured
@@ -32,5 +32,8 @@ def update_setting(payload: SettingUpdate):
     it was saved, but does not echo the value back."""
     if payload.key not in MANAGED_KEYS:
         return {"error": f"'{payload.key}' is not a configurable setting."}
-    set_secret(payload.key, payload.value)
+    value = payload.value.strip()
+    if not value:
+        raise HTTPException(status_code=400, detail="Setting value cannot be empty.")
+    set_secret(payload.key, value)
     return {"key": payload.key, "configured": True}

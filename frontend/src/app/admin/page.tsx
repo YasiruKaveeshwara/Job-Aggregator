@@ -8,14 +8,6 @@ import KeywordEditor from "@/components/KeywordEditor";
 import SearchLocationEditor from "@/components/SearchLocationEditor";
 import SettingsPanel from "@/components/SettingsPanel";
 
-const SECTIONS = [
-  { id: "sources", label: "Sources & Scrape Control" },
-  { id: "settings", label: "Settings" },
-  { id: "keywords", label: "Keywords" },
-  { id: "locations", label: "Locations" },
-  { id: "history", label: "Run History" },
-];
-
 function SectionIcon({ id }: { id: string }) {
   const icons: Record<string, React.ReactElement> = {
     sources: (

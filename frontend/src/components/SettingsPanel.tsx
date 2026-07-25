@@ -19,7 +19,19 @@ export default function SettingsPanel() {
   }
 
   useEffect(() => {
-    refreshStatus();
+    let active = true;
+
+    void getSettingsStatus()
+      .then((status) => {
+        if (active) setGeminiConfigured(status["GEMINI_API_KEY"] ?? false);
+      })
+      .catch((e) => {
+        if (active) setError(e instanceof Error ? e.message : String(e));
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function handleSave() {

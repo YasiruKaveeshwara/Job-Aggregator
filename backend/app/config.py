@@ -111,7 +111,7 @@ ROLE_KEYWORDS_EXCLUDE: list[str] = []
 # ── CORS ──────────────────────────────────────────────────────────────
 CORS_ORIGINS: list[str] = _getenv_list(
     "CORS_ORIGINS",
-    ["http://localhost:3000", "http://127.0.0.1:3000"],
+    ["*"],
 )
 
 # ── Gemini AI classifier ───────────────────────────────────────────────

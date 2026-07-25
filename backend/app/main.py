@@ -87,7 +87,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=["*"],
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -116,11 +117,48 @@ def health_check():
 # ── Static Frontend Mount ────────────────────────────────────────────
 
 import os
+import sys
+
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-_FRONTEND_BUILD_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "frontend", "out"
-)
+
+def _resolve_frontend_build_dir() -> str:
+    if getattr(sys, "frozen", False):
+        base_dir = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+        possible_dirs = [
+            os.path.join(base_dir, "frontend_out"),
+            os.path.join(base_dir, "_internal", "frontend_out"),
+            os.path.join(os.path.dirname(sys.executable), "frontend_out"),
+            os.path.join(os.path.dirname(sys.executable), "_internal", "frontend_out"),
+        ]
+        for d in possible_dirs:
+            if os.path.isdir(d):
+                return d
+        return os.path.join(base_dir, "frontend_out")
+    # Normal development execution.
+    return os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "out")
+
+
+_FRONTEND_BUILD_DIR = _resolve_frontend_build_dir()
+
+
+class SPAStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        try:
+            response = await super().get_response(path, scope)
+            if response.status_code == 404 and not path.startswith("api"):
+                index_path = os.path.join(self.directory, "index.html")
+                if os.path.exists(index_path):
+                    return FileResponse(index_path)
+            return response
+        except Exception:
+            if not path.startswith("api"):
+                index_path = os.path.join(self.directory, "index.html")
+                if os.path.exists(index_path):
+                    return FileResponse(index_path)
+            raise
+
 
 if os.path.isdir(_FRONTEND_BUILD_DIR):
-    app.mount("/", StaticFiles(directory=_FRONTEND_BUILD_DIR, html=True), name="frontend")
+    app.mount("/", SPAStaticFiles(directory=_FRONTEND_BUILD_DIR, html=True), name="frontend")
