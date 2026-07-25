@@ -2,11 +2,23 @@
 
 > A full-stack, multi-source job aggregation, normalization, deduplication, and AI relevance classification engine built for Sri Lanka's software engineering job market.
 
+[![Release](https://img.shields.io/badge/Release-v1.0.0-blue.svg?logo=github)](https://github.com/YasiruKaveeshwara/Job-Aggregator/releases/tag/v1.0.0)
+[![Download Windows Installer](https://img.shields.io/badge/Download-Windows%20Setup%20.exe-0078D4?logo=windows&logoColor=white)](https://github.com/YasiruKaveeshwara/Job-Aggregator/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](backend/README.md)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](frontend/README.md)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-teal)](backend/README.md)
 [![PyWebview](https://img.shields.io/badge/PyWebview-5.4-purple)](desktop/README.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+---
+
+### 📦 Quick Download & Installation (Windows Desktop App)
+
+> **[📥 Download Latest Windows Setup (`JobAggregatorSetup.exe`)](https://github.com/YasiruKaveeshwara/Job-Aggregator/releases/latest)**
+> 
+> 1. Download **`JobAggregatorSetup.exe`** from the [Latest Release Page](https://github.com/YasiruKaveeshwara/Job-Aggregator/releases/latest).
+> 2. Run the installer and follow the 3-step setup wizard.
+> 3. Launch **Job Aggregator** directly from your Desktop or Start Menu!
 
 ---
 
