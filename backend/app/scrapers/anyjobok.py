@@ -58,6 +58,7 @@ class AnyjobokScraper(BaseScraper):
     """Scraper for anyjobok.com using public HTML listing pages."""
 
     platform_name = "anyjobok.com"
+    SITE_PROBE_URL = "https://anyjobok.com"
 
     def _get_client(self) -> httpx.Client:
         """Configured client for AnyJobOK public pages."""

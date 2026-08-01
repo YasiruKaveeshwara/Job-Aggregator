@@ -46,12 +46,11 @@ _JOB_URL_TEMPLATE = "https://rooster.jobs/jobs/{job_id}"
 # normalize.py's role-keyword filter handles precision.
 
 
-
-
 class RoosterScraper(BaseScraper):
     """Scraper for rooster.jobs using their internal search JSON API."""
 
     platform_name = "rooster.jobs"
+    SITE_PROBE_URL = "https://rooster.jobs"
 
     def fetch(self) -> list[RawJobPosting]:
         """Fetch software-related job postings from rooster.jobs."""
@@ -64,7 +63,9 @@ class RoosterScraper(BaseScraper):
 
         keywords = get_enabled_search_keywords()
         if not keywords:
-            logger.warning("[%s] No search keywords in DB — skipping", self.platform_name)
+            logger.warning(
+                "[%s] No search keywords in DB — skipping", self.platform_name
+            )
             return []
 
         with self._get_client() as client:
@@ -111,9 +112,7 @@ class RoosterScraper(BaseScraper):
                 )
                 break
 
-            items: list[dict[str, Any]] = (
-                data.get("body", {}).get("data", []) or []
-            )
+            items: list[dict[str, Any]] = data.get("body", {}).get("data", []) or []
 
             if not items:
                 break  # no more pages
@@ -153,9 +152,7 @@ class RoosterScraper(BaseScraper):
             job_id: int = item["id"]
             title: str = (item.get("title") or "").strip()
             company: str = (
-                item.get("company_name")
-                or item.get("subsidiary_company_name")
-                or ""
+                item.get("company_name") or item.get("subsidiary_company_name") or ""
             ).strip()
             location: str = (item.get("location") or "").strip()
             description: str = (item.get("description") or "").strip()
@@ -230,4 +227,3 @@ class RoosterScraper(BaseScraper):
         loc_lower = location.lower()
         location_keywords = get_enabled_search_locations()
         return any(kw in loc_lower for kw in location_keywords)
-

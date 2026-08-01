@@ -90,7 +90,13 @@ USER_AGENT: str = os.getenv(
 
 # ── Scraper HTTP settings ─────────────────────────────────────────────
 DEFAULT_RATE_LIMIT_SECONDS: float = _getenv_float("DEFAULT_RATE_LIMIT_SECONDS", 0.25)
-HTTP_TIMEOUT_SECONDS: float = _getenv_float("HTTP_TIMEOUT_SECONDS", 15.0)
+# Split connect vs read timeouts:
+#   CONNECT: TCP handshake must succeed within this time — fast-fails unreachable hosts.
+#   READ:    Time to wait for data after connecting — generous for slow servers.
+CONNECT_TIMEOUT_SECONDS: float = _getenv_float("CONNECT_TIMEOUT_SECONDS", 5.0)
+READ_TIMEOUT_SECONDS: float = _getenv_float("READ_TIMEOUT_SECONDS", 15.0)
+# Legacy alias kept for any external references
+HTTP_TIMEOUT_SECONDS: float = READ_TIMEOUT_SECONDS
 
 # ── Retry settings ────────────────────────────────────────────────────
 MAX_RETRIES: int = _getenv_int("MAX_RETRIES", 3)

@@ -46,6 +46,7 @@ class GovernmentjobScraper(BaseScraper):
     """Scraper for governmentjob.lk search results with fallbacks."""
 
     platform_name = "governmentjob.lk"
+    SITE_PROBE_URL = "https://governmentjob.lk"
 
     def fetch(self) -> list[RawJobPosting]:
         """Fetch government job vacancy posts."""
@@ -100,24 +101,36 @@ class GovernmentjobScraper(BaseScraper):
                             url = (
                                 _SEARCH_URL.format(query=query_encoded)
                                 if page_num == 1
-                                else _SEARCH_PAGE_URL.format(page=page_num, query=query_encoded)
+                                else _SEARCH_PAGE_URL.format(
+                                    page=page_num, query=query_encoded
+                                )
                             )
 
                             try:
-                                page.goto(url, wait_until="domcontentloaded", timeout=15000)
-                                page.wait_for_selector("main article, body", timeout=3000)
+                                page.goto(
+                                    url, wait_until="domcontentloaded", timeout=15000
+                                )
+                                page.wait_for_selector(
+                                    "main article, body", timeout=3000
+                                )
                             except Exception:
                                 logger.warning(
                                     "[%s] Browser load failed for query='%s' page %d",
-                                    self.platform_name, query, page_num,
+                                    self.platform_name,
+                                    query,
+                                    page_num,
                                 )
                                 break
 
-                            page_results = self._parse_search_results_page(page.content())
+                            page_results = self._parse_search_results_page(
+                                page.content()
+                            )
                             if not page_results:
                                 logger.info(
                                     "[%s] No results for query='%s' page %d — stopping",
-                                    self.platform_name, query, page_num,
+                                    self.platform_name,
+                                    query,
+                                    page_num,
                                 )
                                 break
 
@@ -130,7 +143,11 @@ class GovernmentjobScraper(BaseScraper):
 
                             logger.debug(
                                 "[%s] query='%s' page %d → %d jobs (%d new)",
-                                self.platform_name, query, page_num, len(page_results), new_jobs,
+                                self.platform_name,
+                                query,
+                                page_num,
+                                len(page_results),
+                                new_jobs,
                             )
                 finally:
                     browser.close()
@@ -416,7 +433,6 @@ class GovernmentjobScraper(BaseScraper):
                 url,
             )
         return fallback
-
 
     @staticmethod
     def _extract_company(title: str) -> str:

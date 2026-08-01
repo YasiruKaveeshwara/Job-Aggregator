@@ -50,13 +50,11 @@ _API_URL = f"{_BASE_URL}/api/jobs/searchJobs"
 _JOB_URL_TEMPLATE = f"{_BASE_URL}/jobs/view/{{job_id}}/"
 
 
-
-
-
 class XpressjobsScraper(BaseScraper):
     """Scraper for xpress.jobs using their public JSON search API."""
 
     platform_name = "xpress.jobs"
+    SITE_PROBE_URL = "https://xpress.jobs"
 
     def fetch(self) -> list[RawJobPosting]:
         """Search xpress.jobs for all configured keywords and merge results."""
@@ -69,7 +67,9 @@ class XpressjobsScraper(BaseScraper):
 
         keywords = get_enabled_search_keywords()
         if not keywords:
-            logger.warning("[%s] No search keywords in DB — skipping", self.platform_name)
+            logger.warning(
+                "[%s] No search keywords in DB — skipping", self.platform_name
+            )
             return []
 
         with self._get_client() as client:
@@ -77,7 +77,10 @@ class XpressjobsScraper(BaseScraper):
                 new_count = self._fetch_query(client, query, results, seen_ids)
                 logger.info(
                     "[%s] Query '%s' → %d new (total: %d)",
-                    self.platform_name, query, new_count, len(results),
+                    self.platform_name,
+                    query,
+                    new_count,
+                    len(results),
                 )
 
         logger.info(
@@ -117,7 +120,10 @@ class XpressjobsScraper(BaseScraper):
             except Exception:
                 logger.warning(
                     "[%s] Request failed for keyword='%s' page=%d",
-                    self.platform_name, keyword, page, exc_info=True,
+                    self.platform_name,
+                    keyword,
+                    page,
+                    exc_info=True,
                 )
                 break
 
@@ -137,7 +143,10 @@ class XpressjobsScraper(BaseScraper):
 
             logger.debug(
                 "[%s] keyword='%s' page=%d → %d items",
-                self.platform_name, keyword, page, len(items),
+                self.platform_name,
+                keyword,
+                page,
+                len(items),
             )
 
             # If fewer than a full page returned, we've reached the end
@@ -197,4 +206,3 @@ class XpressjobsScraper(BaseScraper):
                 exc_info=True,
             )
             return None
-

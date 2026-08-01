@@ -43,7 +43,6 @@ _BASE_URL = "https://findmyjob.lk"
 _API_URL = f"{_BASE_URL}/wp-json/wp/v2/awsm_job_openings"
 
 
-
 _CATEGORY_SOFTWARE = "software-development-web-qa-data-gis"
 
 # Pattern to extract company name from "About the company" section heading text
@@ -54,6 +53,7 @@ class FindmyjobScraper(BaseScraper):
     """Scraper for findmyjob.lk using their WP REST API."""
 
     platform_name = "findmyjob.lk"
+    SITE_PROBE_URL = "https://findmyjob.lk"
 
     def fetch(self) -> list[RawJobPosting]:
         """Search findmyjob.lk for all configured keywords and merge results."""
@@ -66,7 +66,9 @@ class FindmyjobScraper(BaseScraper):
 
         keywords = get_enabled_search_keywords()
         if not keywords:
-            logger.warning("[%s] No search keywords in DB — skipping", self.platform_name)
+            logger.warning(
+                "[%s] No search keywords in DB — skipping", self.platform_name
+            )
             return []
 
         with self._get_client() as client:
@@ -74,7 +76,10 @@ class FindmyjobScraper(BaseScraper):
                 new_count = self._fetch_query(client, results, seen_ids, search=query)
                 logger.info(
                     "[%s] Query '%s' → %d new (total: %d)",
-                    self.platform_name, query, new_count, len(results),
+                    self.platform_name,
+                    query,
+                    new_count,
+                    len(results),
                 )
 
             # Extra pass: fetch by IT category
@@ -83,7 +88,10 @@ class FindmyjobScraper(BaseScraper):
             )
             logger.info(
                 "[%s] Category '%s' → %d new (total: %d)",
-                self.platform_name, _CATEGORY_SOFTWARE, new_count, len(results),
+                self.platform_name,
+                _CATEGORY_SOFTWARE,
+                new_count,
+                len(results),
             )
 
         logger.info(
@@ -121,7 +129,11 @@ class FindmyjobScraper(BaseScraper):
             except Exception:
                 logger.warning(
                     "[%s] Request failed for search='%s' category='%s' page=%d",
-                    self.platform_name, search, category, page, exc_info=True,
+                    self.platform_name,
+                    search,
+                    category,
+                    page,
+                    exc_info=True,
                 )
                 break
 
@@ -141,7 +153,11 @@ class FindmyjobScraper(BaseScraper):
 
             logger.debug(
                 "[%s] search='%s' category='%s' page=%d → %d items",
-                self.platform_name, search, category, page, len(items),
+                self.platform_name,
+                search,
+                category,
+                page,
+                len(items),
             )
 
             # If fewer than a full page returned, we've reached the end
@@ -223,11 +239,12 @@ class FindmyjobScraper(BaseScraper):
                     sentence = text.split(".")[0].strip()
                     # Trim "Our client is " / "Our client, " prefixes
                     sentence = re.sub(
-                        r"^(our client(,?\s*(is|the|a|an))?\s*)", "",
-                        sentence, flags=re.IGNORECASE,
+                        r"^(our client(,?\s*(is|the|a|an))?\s*)",
+                        "",
+                        sentence,
+                        flags=re.IGNORECASE,
                     ).strip()
                     if sentence:
                         return sentence[:120]  # cap length
 
         return ""
-

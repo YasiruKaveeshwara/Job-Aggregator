@@ -55,6 +55,7 @@ class JobseekerlkScraper(BaseScraper):
     """Scraper for jobseeker.lk using server-side rendered HTML search pages."""
 
     platform_name = "jobseeker.lk"
+    SITE_PROBE_URL = "https://jobseeker.lk"
 
     def fetch(self) -> list[RawJobPosting]:
         """Search jobseeker.lk for all configured keywords across multiple pages."""

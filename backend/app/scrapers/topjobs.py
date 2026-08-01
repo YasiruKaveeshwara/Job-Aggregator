@@ -51,7 +51,9 @@ logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://www.topjobs.lk"
 _SEARCH_URL = f"{_BASE_URL}/applicant/vacancybyfunctionalarea.jsp"
-_JOB_URL_TEMPLATE = f"{_BASE_URL}/employer/JobAdvertismentServlet?ac={{ac}}&jc={{jc}}&ec={{ec}}"
+_JOB_URL_TEMPLATE = (
+    f"{_BASE_URL}/employer/JobAdvertismentServlet?ac={{ac}}&jc={{jc}}&ec={{ec}}"
+)
 
 _BLOCK_SIZE = "1000"  # ask for up to 1000 results per search (server-side limit)
 
@@ -60,6 +62,7 @@ class TopjobsScraper(BaseScraper):
     """Scraper for topjobs.lk using its POST-based vacancy search."""
 
     platform_name = "topjobs.lk"
+    SITE_PROBE_URL = "https://www.topjobs.lk"
 
     def _get_client(self) -> httpx.Client:
         """Browser-like headers to avoid bot-detection."""
@@ -101,7 +104,9 @@ class TopjobsScraper(BaseScraper):
                         results.append(p)
                 logger.info(
                     "[%s] Query '%s' → %d unique so far",
-                    self.platform_name, query, len(results),
+                    self.platform_name,
+                    query,
+                    len(results),
                 )
 
         logger.info(
@@ -143,7 +148,9 @@ class TopjobsScraper(BaseScraper):
         except Exception:
             logger.warning(
                 "[%s] POST failed for keyword='%s'",
-                self.platform_name, keyword, exc_info=True,
+                self.platform_name,
+                keyword,
+                exc_info=True,
             )
             return []
 
@@ -167,7 +174,9 @@ class TopjobsScraper(BaseScraper):
             except Exception:
                 logger.warning(
                     "[%s] Failed to parse row %s — skipping",
-                    self.platform_name, row_id, exc_info=True,
+                    self.platform_name,
+                    row_id,
+                    exc_info=True,
                 )
 
         return postings
@@ -203,7 +212,7 @@ class TopjobsScraper(BaseScraper):
 
         # ── Other columns ─────────────────────────────────────────────
         description = tds[3].get_text(strip=True)
-        opening_date = tds[4].get_text(strip=True)   # "Sun Jul 19 2026"
+        opening_date = tds[4].get_text(strip=True)  # "Sun Jul 19 2026"
         location = tds[6].get_text(strip=True) if len(tds) > 6 else None
 
         # Build the canonical detail page URL
@@ -257,4 +266,3 @@ class TopjobsScraper(BaseScraper):
                 url,
             )
         return fallback
-

@@ -67,6 +67,7 @@ class HirelkScraper(BaseScraper):
     """Scraper for hire.lk using its server-side rendered HTML pages."""
 
     platform_name = "hire.lk"
+    SITE_PROBE_URL = "https://hire.lk"
 
     def fetch(self) -> list[RawJobPosting]:
         """Search hire.lk for all configured keywords, then browse the IT industry."""
@@ -86,14 +87,18 @@ class HirelkScraper(BaseScraper):
                 if not self.robots_allowed(url):
                     logger.warning(
                         "[%s] robots.txt disallows %s — skipping",
-                        self.platform_name, url,
+                        self.platform_name,
+                        url,
                     )
                     continue
 
                 new_count = self._fetch_page(client, url, results, seen_ulids)
                 logger.info(
                     "[%s] Query '%s' → %d new (total: %d)",
-                    self.platform_name, query, new_count, len(results),
+                    self.platform_name,
+                    query,
+                    new_count,
+                    len(results),
                 )
 
             # Extra pass: browse IT industry category
@@ -101,7 +106,9 @@ class HirelkScraper(BaseScraper):
                 new_count = self._fetch_page(client, _INDUSTRY_URL, results, seen_ulids)
                 logger.info(
                     "[%s] IT industry browse → %d new (total: %d)",
-                    self.platform_name, new_count, len(results),
+                    self.platform_name,
+                    new_count,
+                    len(results),
                 )
 
         logger.info(
@@ -142,7 +149,10 @@ class HirelkScraper(BaseScraper):
 
         logger.debug(
             "[%s] %s → %d articles, %d new",
-            self.platform_name, url, len(articles), new_count,
+            self.platform_name,
+            url,
+            len(articles),
+            new_count,
         )
         return new_count
 
@@ -159,7 +169,8 @@ class HirelkScraper(BaseScraper):
         except (json.JSONDecodeError, ValueError):
             logger.warning(
                 "[%s] Failed to decode data-card JSON — skipping",
-                self.platform_name, exc_info=True,
+                self.platform_name,
+                exc_info=True,
             )
             return None
 
@@ -234,7 +245,6 @@ class HirelkScraper(BaseScraper):
             )
         return fallback
 
-
     @staticmethod
     def _parse_relative_time(text: str) -> Optional[str]:
         """Convert 'X hours/days/weeks ago' into an ISO datetime string."""
@@ -245,7 +255,10 @@ class HirelkScraper(BaseScraper):
             return None
 
         text = text.lower().strip()
-        match = re.search(r"(\d+)\s*(second|minute|hour|day|week|month|year)s?\s*(?:ago|from now)", text)
+        match = re.search(
+            r"(\d+)\s*(second|minute|hour|day|week|month|year)s?\s*(?:ago|from now)",
+            text,
+        )
         if not match:
             return None
 
@@ -270,4 +283,3 @@ class HirelkScraper(BaseScraper):
             return None
 
         return dt.isoformat()
-

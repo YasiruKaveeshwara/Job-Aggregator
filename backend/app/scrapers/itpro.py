@@ -46,6 +46,7 @@ class ItproScraper(BaseScraper):
     """Scraper for itpro.lk using keyword-based HTML search with pagination."""
 
     platform_name = "itpro.lk"
+    SITE_PROBE_URL = "https://itpro.lk"
 
     def fetch(self) -> list[RawJobPosting]:
         seen_ids: set[str] = set()
@@ -53,13 +54,17 @@ class ItproScraper(BaseScraper):
 
         keywords = get_enabled_search_keywords()
         if not keywords:
-            logger.warning("[%s] No search keywords in DB — skipping", self.platform_name)
+            logger.warning(
+                "[%s] No search keywords in DB — skipping", self.platform_name
+            )
             return []
 
         for keyword in keywords:
             self._fetch_keyword(keyword, seen_ids, results)
 
-        logger.info("[%s] Total unique jobs fetched: %d", self.platform_name, len(results))
+        logger.info(
+            "[%s] Total unique jobs fetched: %d", self.platform_name, len(results)
+        )
         return results
 
     def _fetch_keyword(
@@ -122,7 +127,11 @@ class ItproScraper(BaseScraper):
                     new_on_page,
                 )
 
-                has_next = bool(soup.select_one(f"nav.pagination a.navigate_page[href*='p={page + 1}']"))
+                has_next = bool(
+                    soup.select_one(
+                        f"nav.pagination a.navigate_page[href*='p={page + 1}']"
+                    )
+                )
                 if not has_next:
                     break
 
@@ -139,7 +148,9 @@ class ItproScraper(BaseScraper):
         """Parse a single job-card article element into a RawJobPosting."""
         try:
             link_tag = card.select_one("a[href]")
-            job_url = link_tag["href"] if link_tag else f"https://itpro.lk/job/{job_id}/"
+            job_url = (
+                link_tag["href"] if link_tag else f"https://itpro.lk/job/{job_id}/"
+            )
 
             title_tag = card.select_one("h2.jc-title")
             title = title_tag.get_text(strip=True) if title_tag else ""
@@ -150,7 +161,9 @@ class ItproScraper(BaseScraper):
             location_tag = card.select_one("span.la")
             location = location_tag.get_text(strip=True) if location_tag else None
             if location:
-                location = re.sub(r"^\s*[\u2000-\u9fff\ue000-\uffff]*\s*", "", location).strip()
+                location = re.sub(
+                    r"^\s*[\u2000-\u9fff\ue000-\uffff]*\s*", "", location
+                ).strip()
 
             time_tag = card.select_one("time.time-posted")
             posted_date_raw = time_tag.get("datetime") if time_tag else None
@@ -209,4 +222,3 @@ class ItproScraper(BaseScraper):
                 url,
             )
         return ""
-

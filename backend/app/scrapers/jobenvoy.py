@@ -44,6 +44,7 @@ class JobenvoyScraper(BaseScraper):
     """Scraper for jobenvoy.com using public search-result HTML."""
 
     platform_name = "jobenvoy.com"
+    SITE_PROBE_URL = "https://jobenvoy.com"
 
     def fetch(self) -> list[RawJobPosting]:
         """Fetch job postings from jobenvoy.com for all configured keywords."""

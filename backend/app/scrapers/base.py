@@ -21,8 +21,9 @@ import httpx
 from pydantic import BaseModel
 
 from app.config import (
+    CONNECT_TIMEOUT_SECONDS,
+    READ_TIMEOUT_SECONDS,
     DEFAULT_RATE_LIMIT_SECONDS,
-    HTTP_TIMEOUT_SECONDS,
     MAX_RETRIES,
     RETRY_BACKOFF_FACTOR,
     USER_AGENT,
@@ -47,6 +48,7 @@ class SiteUnavailableError(RuntimeError):
     ``_request_with_retry`` raises this immediately — no network call, no
     delay.  The circuit resets automatically on the next successful response.
     """
+
 
 def set_active_cancel_event(cancel_event: threading.Event | None) -> None:
     """Bind a cancel event to the current thread for scraper use."""
@@ -154,6 +156,11 @@ class BaseScraper(ABC):
 
     platform_name: str  # e.g. "itpro.lk" — set by each subclass
 
+    #: Base URL used for the pre-flight connectivity probe.
+    #: Set this in every subclass (e.g. "https://itpro.lk").
+    #: Leave as empty string to skip the probe for that scraper.
+    SITE_PROBE_URL: str = ""
+
     def __init__(self, cancel_event: threading.Event | None = None) -> None:
         self._last_request_time: float = 0.0
         self._cancel_event = cancel_event
@@ -170,7 +177,10 @@ class BaseScraper(ABC):
     def _record_failure(self) -> None:
         """Increment the consecutive-failure counter; open circuit if threshold hit."""
         self._consecutive_failures += 1
-        if self._consecutive_failures >= self.CIRCUIT_BREAKER_THRESHOLD and not self._circuit_open:
+        if (
+            self._consecutive_failures >= self.CIRCUIT_BREAKER_THRESHOLD
+            and not self._circuit_open
+        ):
             self._circuit_open = True
             logger.warning(
                 "[%s] Circuit breaker OPEN after %d consecutive failures — "
@@ -194,14 +204,92 @@ class BaseScraper(ABC):
     # ── HTTP client ──────────────────────────────────────────────────
 
     def _get_client(self) -> httpx.Client:
-        """Return a configured ``httpx.Client`` with our User-Agent."""
+        """Return a configured ``httpx.Client`` with split connect/read timeouts."""
         return httpx.Client(
             headers={"User-Agent": USER_AGENT},
             follow_redirects=True,
-            timeout=HTTP_TIMEOUT_SECONDS,
+            timeout=httpx.Timeout(
+                connect=CONNECT_TIMEOUT_SECONDS,
+                read=READ_TIMEOUT_SECONDS,
+                write=READ_TIMEOUT_SECONDS,
+                pool=CONNECT_TIMEOUT_SECONDS,
+            ),
         )
 
-    # ── Robots.txt ───────────────────────────────────────────────────
+    # ── Pre-flight probe + public entry point ────────────────────────
+
+    def _probe_site(self) -> bool:
+        """
+        Quick 5-second connectivity check against ``SITE_PROBE_URL``.
+
+        Returns ``True`` if the site is reachable (any non-CDN-down response
+        counts — even a 4xx means the server answered).  Returns ``False`` on
+        connection errors or CDN "origin down" codes (522/523/524).
+
+        On ``False`` the circuit breaker is opened immediately so that every
+        subsequent ``_request_with_retry`` call short-circuits instantly.
+        """
+        url = self.SITE_PROBE_URL
+        if not url:
+            return True  # no probe configured — assume reachable
+
+        try:
+            with httpx.Client(
+                headers={"User-Agent": USER_AGENT},
+                follow_redirects=True,
+                timeout=httpx.Timeout(5.0),
+            ) as probe_client:
+                resp = probe_client.head(url)
+                if resp.status_code in (522, 523, 524):
+                    # CDN confirms origin is unreachable
+                    self._record_failure()
+                    self._record_failure()  # ensure threshold is always met
+                    logger.warning(
+                        "[%s] Pre-flight probe: HTTP %d — site appears DOWN",
+                        self.platform_name,
+                        resp.status_code,
+                    )
+                    return False
+                return True
+
+        except (
+            httpx.ConnectError,
+            httpx.ConnectTimeout,
+            httpx.ReadTimeout,
+            httpx.TimeoutException,
+        ):
+            # Could not connect at all within 5 s — open circuit immediately
+            self._record_failure()
+            self._record_failure()  # ensure threshold is always met
+            logger.warning(
+                "[%s] Pre-flight probe: unreachable within 5s — skipping site",
+                self.platform_name,
+            )
+            return False
+
+        except Exception:
+            # Unknown error (redirect loop, SSL, etc.) — let fetch() try anyway
+            logger.debug(
+                "[%s] Pre-flight probe raised unexpected error — proceeding",
+                self.platform_name,
+                exc_info=True,
+            )
+            return True
+
+    def run(self) -> list[RawJobPosting]:
+        """
+        Public entry point called by the orchestrator.
+
+        Runs a quick pre-flight check first; if the site is unreachable the
+        circuit breaker is opened and an empty list is returned immediately
+        without entering the keyword loop.  On success, delegates to
+        ``fetch()``.
+        """
+        if not self._probe_site():
+            return []
+        return self.fetch()
+
+    # ── Robots.txt ───────────────────────────────────────────────────────
 
     def robots_allowed(self, url: str) -> bool:
         """Check whether our User-Agent is allowed to fetch *url*."""

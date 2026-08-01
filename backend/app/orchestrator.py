@@ -313,7 +313,7 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
     # ── Fetch ────────────────────────────────────────────────────
     try:
         scraper = scraper_cls()
-        raw_postings = scraper.fetch()
+        raw_postings = scraper.run()  # pre-flight probe + fetch
     except ScrapeCancelled:
         logger.info("[orchestrator] %s fetch cancelled for run %d", site_name, run_id)
         _mark_run_cancelled(run_id)
