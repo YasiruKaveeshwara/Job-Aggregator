@@ -45,6 +45,7 @@ from app.scrapers.topjobs import TopjobsScraper
 from app.scrapers.xpressjobs import XpressjobsScraper
 from app.scrapers.findmyjob import FindmyjobScraper
 from app.scrapers.hirelk import HirelkScraper
+from app.scrapers.jobseekerlk import JobseekerlkScraper
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     "xpress.jobs": XpressjobsScraper,
     "findmyjob.lk": FindmyjobScraper,
     "hire.lk": HirelkScraper,
+    "jobseeker.lk": JobseekerlkScraper,
 }
 
 
@@ -134,7 +136,9 @@ def run_scrape(run_id: int, sites: list[str] | str) -> None:
         _unregister_cancel_event(run_id)
 
 
-def _calc_progress_timers(start_time: float, completed: int, total: int, is_classifying: bool = False) -> tuple[float, float]:
+def _calc_progress_timers(
+    start_time: float, completed: int, total: int, is_classifying: bool = False
+) -> tuple[float, float]:
     """Return (elapsed_seconds, estimated_remaining_seconds)."""
     elapsed = max(0.0, round(time.time() - start_time, 1))
     if is_classifying:
@@ -197,7 +201,9 @@ def _execute_run(
             _mark_run_cancelled(run_id)
             return
 
-        elapsed, est_remaining = _calc_progress_timers(run_start_time, completed, len(site_names))
+        elapsed, est_remaining = _calc_progress_timers(
+            run_start_time, completed, len(site_names)
+        )
         _update_progress(
             run_id,
             {
@@ -220,7 +226,9 @@ def _execute_run(
             run_id,
             len(all_new_job_ids),
         )
-        elapsed, est_remaining = _calc_progress_timers(run_start_time, completed, len(site_names), is_classifying=True)
+        elapsed, est_remaining = _calc_progress_timers(
+            run_start_time, completed, len(site_names), is_classifying=True
+        )
         _update_progress(
             run_id,
             {
@@ -390,7 +398,9 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
         _update_source_timestamp(site_name)
 
 
-def _enrich_new_job_descriptions(site_name: str, job_ids: list[int], scraper_cls) -> None:
+def _enrich_new_job_descriptions(
+    site_name: str, job_ids: list[int], scraper_cls
+) -> None:
     """Concurrently fetch full detail descriptions ONLY for newly inserted jobs."""
     if not job_ids:
         return
@@ -447,7 +457,9 @@ def _enrich_new_job_descriptions(site_name: str, job_ids: list[int], scraper_cls
         )
     except Exception:
         logger.warning(
-            "[orchestrator] %s — description enrichment failed", site_name, exc_info=True
+            "[orchestrator] %s — description enrichment failed",
+            site_name,
+            exc_info=True,
         )
 
 
@@ -507,11 +519,19 @@ def _mark_run_completed(run_id: int) -> None:
             run.status = "COMPLETED"
             run.finished_at = now
             if run.started_at:
-                started = run.started_at if run.started_at.tzinfo else run.started_at.replace(tzinfo=timezone.utc)
+                started = (
+                    run.started_at
+                    if run.started_at.tzinfo
+                    else run.started_at.replace(tzinfo=timezone.utc)
+                )
                 run.duration_seconds = round((now - started).total_seconds(), 1)
             session.add(run)
             session.commit()
-            logger.info("[orchestrator] Run %d COMPLETED (took %.1fs)", run_id, run.duration_seconds or 0.0)
+            logger.info(
+                "[orchestrator] Run %d COMPLETED (took %.1fs)",
+                run_id,
+                run.duration_seconds or 0.0,
+            )
 
 
 def _mark_run_failed(run_id: int) -> None:
@@ -523,11 +543,19 @@ def _mark_run_failed(run_id: int) -> None:
             run.status = "FAILED"
             run.finished_at = now
             if run.started_at:
-                started = run.started_at if run.started_at.tzinfo else run.started_at.replace(tzinfo=timezone.utc)
+                started = (
+                    run.started_at
+                    if run.started_at.tzinfo
+                    else run.started_at.replace(tzinfo=timezone.utc)
+                )
                 run.duration_seconds = round((now - started).total_seconds(), 1)
             session.add(run)
             session.commit()
-            logger.error("[orchestrator] Run %d FAILED after %.1fs", run_id, run.duration_seconds or 0.0)
+            logger.error(
+                "[orchestrator] Run %d FAILED after %.1fs",
+                run_id,
+                run.duration_seconds or 0.0,
+            )
 
 
 def _mark_run_cancelled(run_id: int) -> None:
@@ -539,12 +567,18 @@ def _mark_run_cancelled(run_id: int) -> None:
             run.status = "CANCELLED"
             run.finished_at = now
             if run.started_at:
-                started = run.started_at if run.started_at.tzinfo else run.started_at.replace(tzinfo=timezone.utc)
+                started = (
+                    run.started_at
+                    if run.started_at.tzinfo
+                    else run.started_at.replace(tzinfo=timezone.utc)
+                )
                 run.duration_seconds = round((now - started).total_seconds(), 1)
             session.add(run)
             session.commit()
             logger.info(
-                "[orchestrator] Run %d CANCELLED (partial results saved after %.1fs)", run_id, run.duration_seconds or 0.0
+                "[orchestrator] Run %d CANCELLED (partial results saved after %.1fs)",
+                run_id,
+                run.duration_seconds or 0.0,
             )
 
 

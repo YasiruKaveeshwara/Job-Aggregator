@@ -15,7 +15,7 @@
 ### 📦 Quick Download & Installation (Windows Desktop App)
 
 > **[📥 Download Latest Windows Setup (`JobAggregatorSetup.exe`)](https://github.com/YasiruKaveeshwara/Job-Aggregator/releases/latest)**
-> 
+>
 > 1. Download **`JobAggregatorSetup.exe`** from the [Latest Release Page](https://github.com/YasiruKaveeshwara/Job-Aggregator/releases/latest).
 > 2. Run the installer and follow the 3-step setup wizard.
 > 3. Launch **Job Aggregator** directly from your Desktop or Start Menu!
@@ -24,14 +24,15 @@
 
 ## Executive Overview
 
-**Job Aggregator** simplifies job hunting for software engineers in Sri Lanka by consolidating listings from major platforms (`rooster.jobs`, `topjobs.lk`, `itpro.lk`, `lk.indeed.com`, `glassdoor.com`, `careers.lk`, `expressjobs.lk`, `observerjobs.lk`, `jobkart.lk`) into a single unified workspace.
+**Job Aggregator** simplifies job hunting for software engineers in Sri Lanka by consolidating listings from major platforms into a single unified workspace.
 
 Instead of endlessly checking multiple websites, Job Aggregator provides:
+
 - **Multi-Source Aggregation**: Automated scraping using specialized adaptors tailored per site structure.
 - **Intelligent Deduplication**: Merges duplicate listings posted across multiple sites or re-advertised postings.
 - **Role-Based Normalization & Filtering**: Cleans titles, extracts experience levels, and filters for relevant engineering roles.
 - **Gemini 1.5 Flash AI Classifier**: Uses Google Gemini LLM to evaluate borderline postings and eliminate non-tech jobs.
-- **Kanban Application Tracker**: Track application states (`SAVED`, `APPLIED`, `INTERVIEWING`, `REMOVED`) directly from the dashboard.
+- **Application Tracker**: Track application states (`SAVED`, `APPLIED`, `INTERVIEWING`, `REMOVED`) directly from the dashboard.
 - **Dual Operating Modes**: Run as a standard **Web Application** (Next.js + FastAPI) or as a native **Windows Desktop Application** (`JobAggregatorSetup.exe`).
 
 ---
@@ -86,27 +87,30 @@ flowchart TD
 Click into any sub-project below for in-depth technical documentation:
 
 ### 📁 [1. Backend Engine (`backend/ README.md`)](backend/README.md)
-*Contains the FastAPI server, scraper adaptors (`httpx`, `BeautifulSoup4`, `curl_cffi`, `Playwright`), database models (`jobs.db`), deduplication logic, and Gemini AI integration.*
+
+_Contains the FastAPI server, scraper adaptors (`httpx`, `BeautifulSoup4`, `curl_cffi`, `Playwright`), database models (`jobs.db`), deduplication logic, and Gemini AI integration._
 
 ### 📁 [2. Frontend Web Application (`frontend/ README.md`)](frontend/README.md)
-*Contains the Next.js 16 App Router interface, React components, dark glassmorphism styling, Kanban application state controls, real-time fetch HUD, and Gemini settings UI.*
+
+_Contains the Next.js 16 App Router interface, React components, dark glassmorphism styling, Kanban application state controls, real-time fetch HUD, and Gemini settings UI._
 
 ### 📁 [3. Desktop Distribution (`desktop/ README.md`)](desktop/README.md)
-*Contains the PyWebview desktop wrapper, PyInstaller specs, setup installer GUI (`installer_gui.py`), uninstaller GUI (`uninstaller_gui.py`), and binary packaging tools.*
+
+_Contains the PyWebview desktop wrapper, PyInstaller specs, setup installer GUI (`installer_gui.py`), uninstaller GUI (`uninstaller_gui.py`), and binary packaging tools._
 
 ---
 
 ## Tech Stack Summary
 
-| Layer | Technology | Details |
-| :--- | :--- | :--- |
-| **Frontend UI** | Next.js 16, React 19, TypeScript | App Router, static export (`output: "export"`) |
-| **Styling** | Vanilla CSS Tokens | Dark glassmorphic design system in `globals.css` |
-| **Backend API** | FastAPI, Uvicorn, SQLModel | Async REST endpoints, Pydantic data validation |
-| **Scrapers** | HTTPX, BeautifulSoup4, curl_cffi, Playwright | Dynamic site rendering, rate-limiting & retries |
-| **AI Classification** | Google Gemini 1.5 Flash | Structured JSON prompt classification for role relevance |
-| **Database** | SQLite | Saved at `backend/jobs.db` (dev) or `%APPDATA%\JobAggregator\jobs.db` (desktop) |
-| **Desktop Wrapper** | PyWebview 5.4, PyInstaller | Native Windows GUI application with installer & uninstaller wizards |
+| Layer                 | Technology                                   | Details                                                                         |
+| :-------------------- | :------------------------------------------- | :------------------------------------------------------------------------------ |
+| **Frontend UI**       | Next.js 16, React 19, TypeScript             | App Router, static export (`output: "export"`)                                  |
+| **Styling**           | Vanilla CSS Tokens                           | Dark glassmorphic design system in `globals.css`                                |
+| **Backend API**       | FastAPI, Uvicorn, SQLModel                   | Async REST endpoints, Pydantic data validation                                  |
+| **Scrapers**          | HTTPX, BeautifulSoup4, curl_cffi, Playwright | Dynamic site rendering, rate-limiting & retries                                 |
+| **AI Classification** | Google Gemini 1.5 Flash                      | Structured JSON prompt classification for role relevance                        |
+| **Database**          | SQLite                                       | Saved at `backend/jobs.db` (dev) or `%APPDATA%\JobAggregator\jobs.db` (desktop) |
+| **Desktop Wrapper**   | PyWebview 5.4, PyInstaller                   | Native Windows GUI application with installer & uninstaller wizards             |
 
 ---
 
@@ -115,6 +119,7 @@ Click into any sub-project below for in-depth technical documentation:
 ### Mode A: Web Development Setup
 
 #### 1. Backend Server
+
 ```powershell
 cd backend
 python -m venv venv
@@ -122,21 +127,25 @@ python -m venv venv
 pip install -r requirements.txt
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-*Backend runs at `http://127.0.0.1:8000` (Swagger UI at `http://127.0.0.1:8000/docs`).*
+
+_Backend runs at `http://127.0.0.1:8000` (Swagger UI at `http://127.0.0.1:8000/docs`)._
 
 #### 2. Frontend Web Server
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-*Dashboard served at `http://localhost:3000` (Admin Portal at `http://localhost:3000/admin`).*
+
+_Dashboard served at `http://localhost:3000` (Admin Portal at `http://localhost:3000/admin`)._
 
 ---
 
 ### Mode B: Native Windows Desktop Setup
 
 #### 1. Build Desktop Package from Source
+
 ```powershell
 cd desktop
 pip install -r requirements.txt
@@ -155,6 +164,7 @@ python -m PyInstaller -y installer_build.spec
 ```
 
 #### 2. Install & Run
+
 - Double-click **`desktop/dist/JobAggregatorSetup.exe`** to launch the 3-step installer GUI.
 - Follow the setup wizard to create Desktop/Start Menu shortcuts and configure Developer Mode.
 - Open **Job Aggregator** from your Desktop or Start Menu!

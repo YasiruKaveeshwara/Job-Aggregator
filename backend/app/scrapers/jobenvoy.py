@@ -57,27 +57,42 @@ class JobenvoyScraper(BaseScraper):
             logger.warning("[%s] No search keywords in DB — skipping", self.platform_name)
             return []
 
+        consecutive_failures = 0
+        MAX_CONSECUTIVE_FAILURES = 2  # bail out if site looks completely down
+
         with self._get_client() as client:
             for query in keywords:
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    logger.warning(
+                        "[%s] Site appears to be down (%d consecutive failures) — skipping remaining keywords",
+                        self.platform_name, consecutive_failures,
+                    )
+                    break
+
                 query_slug = query.replace(" ", "+")
                 start_url = _SEARCH_URL_TEMPLATE.format(query=query_slug)
+
+                # Check robots.txt once per keyword (cached after first call)
+                if not self.robots_allowed(start_url):
+                    logger.warning("robots.txt disallows %s — skipping keyword '%s'", start_url, query)
+                    continue
+
                 next_url: Optional[str] = start_url
+                keyword_failed = False
 
                 for page_num in range(1, SCRAPER_MAX_PAGES + 1):
                     if not next_url:
                         break
 
-                    if not self.robots_allowed(next_url):
-                        logger.warning("robots.txt disallows %s — skipping", next_url)
-                        break
-
                     try:
                         response = self._request_with_retry(client, "GET", next_url)
+                        keyword_failed = False
                     except Exception:
                         logger.warning(
                             "[%s] Failed to fetch %s — skipping",
                             self.platform_name, next_url, exc_info=True,
                         )
+                        keyword_failed = True
                         break
 
                     page_results, discovered_next_url = self._parse_listing_page(
@@ -92,7 +107,7 @@ class JobenvoyScraper(BaseScraper):
                             new_jobs += 1
 
                     logger.info(
-                        "[%s] query='%s' page %d → %d new (total: %d)",
+                        "[%s] query='%s' page %d -> %d new (total: %d)",
                         self.platform_name, query, page_num, new_jobs, len(results),
                     )
 
@@ -100,6 +115,11 @@ class JobenvoyScraper(BaseScraper):
                         break
 
                     next_url = discovered_next_url
+
+                if keyword_failed:
+                    consecutive_failures += 1
+                else:
+                    consecutive_failures = 0
 
         logger.info(
             "[%s] Finished — %d unique postings collected",

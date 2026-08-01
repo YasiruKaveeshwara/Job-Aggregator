@@ -37,6 +37,17 @@ class ScrapeCancelled(RuntimeError):
     """Raised when a scrape run is cancelled while a scraper is in flight."""
 
 
+class SiteUnavailableError(RuntimeError):
+    """
+    Raised when a scraper's circuit breaker opens.
+
+    After ``CIRCUIT_BREAKER_THRESHOLD`` consecutive site-level failures
+    (CDN-down codes 522/523/524, or all retries exhausted on 5xx / network
+    errors), the circuit opens and every subsequent call to
+    ``_request_with_retry`` raises this immediately — no network call, no
+    delay.  The circuit resets automatically on the next successful response.
+    """
+
 def set_active_cancel_event(cancel_event: threading.Event | None) -> None:
     """Bind a cancel event to the current thread for scraper use."""
     if cancel_event is None:
@@ -101,7 +112,7 @@ def _get_robots_parser(url: str) -> RobotFileParser:
                 robots_url,
                 headers={"User-Agent": USER_AGENT},
                 follow_redirects=True,
-                timeout=10.0,
+                timeout=5.0,
             )
             if resp.status_code == 200:
                 # Parse the fetched content — handles encoding better
@@ -146,6 +157,33 @@ class BaseScraper(ABC):
     def __init__(self, cancel_event: threading.Event | None = None) -> None:
         self._last_request_time: float = 0.0
         self._cancel_event = cancel_event
+        # ── Circuit breaker state ────────────────────────────────────
+        self._consecutive_failures: int = 0
+        self._circuit_open: bool = False
+
+    # ── Circuit breaker ──────────────────────────────────────────────
+
+    #: Number of consecutive site-level failures before the circuit opens.
+    #: Subclasses may override this class variable to tune per-site.
+    CIRCUIT_BREAKER_THRESHOLD: int = 2
+
+    def _record_failure(self) -> None:
+        """Increment the consecutive-failure counter; open circuit if threshold hit."""
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= self.CIRCUIT_BREAKER_THRESHOLD and not self._circuit_open:
+            self._circuit_open = True
+            logger.warning(
+                "[%s] Circuit breaker OPEN after %d consecutive failures — "
+                "skipping remaining requests to this site",
+                self.platform_name,
+                self._consecutive_failures,
+            )
+
+    def _record_success(self) -> None:
+        """Reset the circuit breaker on a successful response."""
+        if self._consecutive_failures:
+            self._consecutive_failures = 0
+            self._circuit_open = False
 
     def _raise_if_cancelled(self) -> None:
         """Raise if the current run has been cancelled."""
@@ -208,8 +246,16 @@ class BaseScraper(ABC):
         Make an HTTP request with automatic retry on transient failures.
 
         Retries on 429, 5xx, and network errors with exponential backoff.
-        Raises the last exception if all retries are exhausted.
+        Raises ``SiteUnavailableError`` immediately (no network call) when
+        the circuit breaker is open — i.e. the site has failed repeatedly.
         """
+        # ── Circuit breaker check ─────────────────────────────────────
+        if self._circuit_open:
+            raise SiteUnavailableError(
+                f"[{self.platform_name}] Circuit breaker is open — "
+                "site appears to be down, skipping request"
+            )
+
         last_exc: Exception | None = None
 
         for attempt in range(MAX_RETRIES):
@@ -219,7 +265,16 @@ class BaseScraper(ABC):
             try:
                 response = client.request(method, url, **kwargs)
 
-                # Retry on server errors and rate limits
+                # Cloudflare / CDN "origin is down" codes — non-retryable.
+                # Count toward circuit breaker and raise immediately.
+                # 522 = Connection Timed Out, 523 = Origin Unreachable,
+                # 524 = A Timeout Occurred.
+                if response.status_code in (522, 523, 524):
+                    self._record_failure()
+                    response.raise_for_status()
+
+                # Retry on transient server errors and rate limits.
+                # Note: 429 (rate-limited) is NOT a site-down signal.
                 if response.status_code in (429, 500, 502, 503, 504):
                     wait = RETRY_BACKOFF_FACTOR * (2**attempt)
                     logger.warning(
@@ -239,10 +294,12 @@ class BaseScraper(ABC):
                     continue
 
                 response.raise_for_status()
+                self._record_success()  # successful response — reset circuit
                 return response
 
             except httpx.HTTPStatusError:
-                # Non-retryable HTTP errors (4xx other than 429)
+                # 522/523/524 already recorded above; other 4xx are not
+                # site-down signals (application-level rejections).
                 raise
 
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
@@ -263,7 +320,8 @@ class BaseScraper(ABC):
                     time.sleep(chunk)
                     wait -= chunk
 
-        # All retries exhausted
+        # All retries exhausted — count as a site-level failure
+        self._record_failure()
         raise RuntimeError(
             f"[{self.platform_name}] Failed to fetch {url} after {MAX_RETRIES} attempts"
         ) from last_exc

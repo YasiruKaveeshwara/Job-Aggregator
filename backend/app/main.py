@@ -33,6 +33,7 @@ _DEFAULT_SOURCES = [
     "xpress.jobs",
     "findmyjob.lk",
     "hire.lk",
+    "jobseeker.lk",
 ]
 
 
@@ -161,4 +162,6 @@ class SPAStaticFiles(StaticFiles):
 
 
 if os.path.isdir(_FRONTEND_BUILD_DIR):
-    app.mount("/", SPAStaticFiles(directory=_FRONTEND_BUILD_DIR, html=True), name="frontend")
+    app.mount(
+        "/", SPAStaticFiles(directory=_FRONTEND_BUILD_DIR, html=True), name="frontend"
+    )
