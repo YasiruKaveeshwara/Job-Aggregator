@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 
 from app.scrapers.base import BaseScraper, RawJobPosting
 from app.search_keywords import get_enabled_search_keywords
-from app.config import SCRAPER_MAX_PAGES
+from app.config import SCRAPER_MAX_PAGES, SCRAPER_PAGE_SIZE
 
 logger = logging.getLogger(__name__)
 
