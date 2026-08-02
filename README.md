@@ -2,7 +2,7 @@
 
 > A full-stack, multi-source job aggregation, normalization, deduplication, and AI relevance classification engine built for Sri Lanka's software engineering job market.
 
-[![Release](https://img.shields.io/badge/Release-v1.1.0-blue.svg?logo=github)](https://github.com/YasiruKaveeshwara/Job-Aggregator/releases/tag/v1.1.0)
+[![Release](https://img.shields.io/badge/Release-v1.2.1-blue.svg?logo=github)](https://github.com/YasiruKaveeshwara/Job-Aggregator/releases/tag/v1.2.1)
 [![Download Windows Installer](https://img.shields.io/badge/Download-Windows%20Setup%20.exe-0078D4?logo=windows&logoColor=white)](https://github.com/YasiruKaveeshwara/Job-Aggregator/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](backend/README.md)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](frontend/README.md)
@@ -28,12 +28,30 @@
 
 Instead of endlessly checking multiple websites, Job Aggregator provides:
 
-- **Multi-Source Aggregation**: Automated scraping using specialized adaptors tailored per site structure.
+- **Multi-Source Aggregation**: Automated scraping from 10 job platforms using specialized adaptors tailored per site structure.
 - **Intelligent Deduplication**: Merges duplicate listings posted across multiple sites or re-advertised postings.
 - **Role-Based Normalization & Filtering**: Cleans titles, extracts experience levels, and filters for relevant engineering roles.
-- **Gemini 1.5 Flash AI Classifier**: Uses Google Gemini LLM to evaluate borderline postings and eliminate non-tech jobs.
+- **Gemini AI Classifier**: Uses Google Gemini LLM to evaluate borderline postings and eliminate non-tech jobs.
 - **Application Tracker**: Track application states (`SAVED`, `APPLIED`, `INTERVIEWING`, `REMOVED`) directly from the dashboard.
 - **Dual Operating Modes**: Run as a standard **Web Application** (Next.js + FastAPI) or as a native **Windows Desktop Application** (`JobAggregatorSetup.exe`).
+- **Circuit Breaker & Pre-flight Probes**: Automatic detection of unreachable sites with instant skip — no wasted time on down servers.
+
+---
+
+## Supported Job Platforms
+
+| Platform                                     | Type                 | Scraper Method                      |
+| :------------------------------------------- | :------------------- | :---------------------------------- |
+| [itpro.lk](https://itpro.lk)                 | IT Jobs              | HTML keyword search                 |
+| [anyjobok.com](https://anyjobok.com)         | General + IT Jobs    | HTML listing pages                  |
+| [governmentjob.lk](https://governmentjob.lk) | Government Vacancies | Playwright + WP API + HTML fallback |
+| [jobenvoy.com](https://jobenvoy.com)         | General Jobs         | HTML search with pagination         |
+| [rooster.jobs](https://rooster.jobs)         | IT Jobs              | JSON API                            |
+| [topjobs.lk](https://topjobs.lk)             | General + IT Jobs    | POST-based HTML search              |
+| [xpress.jobs](https://xpress.jobs)           | General + IT Jobs    | JSON API                            |
+| [findmyjob.lk](https://findmyjob.lk)         | IT Jobs              | WordPress REST API                  |
+| [hire.lk](https://hire.lk)                   | IT Jobs              | HTML search + industry filter       |
+| [jobseeker.lk](https://jobseeker.lk)         | General + IT Jobs    | HTML keyword search                 |
 
 ---
 
@@ -60,7 +78,7 @@ flowchart TD
         API["FastAPI REST Endpoints"]
         Orchestrator["Scrape Orchestrator & Scraper Adaptors"]
         DedupEngine["Deduplication & Normalizer"]
-        GeminiAI["Gemini 1.5 Flash LLM Classifier"]
+        GeminiAI["Gemini AI Classifier"]
     end
 
     subgraph Storage ["Persistence Layer"]
@@ -88,7 +106,7 @@ Click into any sub-project below for in-depth technical documentation:
 
 ### 📁 [1. Backend Engine (`backend/ README.md`)](backend/README.md)
 
-_Contains the FastAPI server, scraper adaptors (`httpx`, `BeautifulSoup4`, `curl_cffi`, `Playwright`), database models (`jobs.db`), deduplication logic, and Gemini AI integration._
+_Contains the FastAPI server, 10 scraper adaptors (`httpx`, `BeautifulSoup4`, `curl_cffi`, `Playwright`), database models (`jobs.db`), deduplication logic, circuit breaker resilience, and Gemini AI integration._
 
 ### 📁 [2. Frontend Web Application (`frontend/ README.md`)](frontend/README.md)
 
@@ -96,7 +114,7 @@ _Contains the Next.js 16 App Router interface, React components, dark glassmorph
 
 ### 📁 [3. Desktop Distribution (`desktop/ README.md`)](desktop/README.md)
 
-_Contains the PyWebview desktop wrapper, PyInstaller specs, setup installer GUI (`installer_gui.py`), uninstaller GUI (`uninstaller_gui.py`), and binary packaging tools._
+_Contains the PyWebview desktop wrapper, PyInstaller specs, LZMA payload compression, setup installer GUI (`installer_gui.py`), uninstaller GUI (`uninstaller_gui.py`), and binary packaging tools._
 
 ---
 
@@ -107,8 +125,8 @@ _Contains the PyWebview desktop wrapper, PyInstaller specs, setup installer GUI 
 | **Frontend UI**       | Next.js 16, React 19, TypeScript             | App Router, static export (`output: "export"`)                                  |
 | **Styling**           | Vanilla CSS Tokens                           | Dark glassmorphic design system in `globals.css`                                |
 | **Backend API**       | FastAPI, Uvicorn, SQLModel                   | Async REST endpoints, Pydantic data validation                                  |
-| **Scrapers**          | HTTPX, BeautifulSoup4, curl_cffi, Playwright | Dynamic site rendering, rate-limiting & retries                                 |
-| **AI Classification** | Google Gemini 1.5 Flash                      | Structured JSON prompt classification for role relevance                        |
+| **Scrapers**          | HTTPX, BeautifulSoup4, curl_cffi, Playwright | 10 site adaptors, rate-limiting, retries, circuit breaker, pre-flight probes    |
+| **AI Classification** | Google Gemini 3.1 Flash Lite                 | Structured JSON prompt classification for role relevance                        |
 | **Database**          | SQLite                                       | Saved at `backend/jobs.db` (dev) or `%APPDATA%\JobAggregator\jobs.db` (desktop) |
 | **Desktop Wrapper**   | PyWebview 5.4, PyInstaller                   | Native Windows GUI application with installer & uninstaller wizards             |
 
@@ -147,19 +165,21 @@ _Dashboard served at `http://localhost:3000` (Admin Portal at `http://localhost:
 #### 1. Build Desktop Package from Source
 
 ```powershell
-cd desktop
+# Build frontend static export first
+cd frontend
+npm run build
+
+# Build desktop package
+cd ..\desktop
 pip install -r requirements.txt
 
-# 1. Build application payload
+# Step 1: Build the main application payload
 python -m PyInstaller -y build.spec
 
-# 2. Build standalone uninstaller
-python -m PyInstaller -y uninstaller_build.spec
+# Step 2: Compress payload with LZMA
+python make_payload.py
 
-# 3. Bundle uninstaller into payload
-copy dist\uninstall.exe dist\JobAggregator\uninstall.exe
-
-# 4. Build single installer setup file
+# Step 3: Build the single setup installer
 python -m PyInstaller -y installer_build.spec
 ```
 
@@ -178,7 +198,6 @@ When running in web dev mode, create a `backend/.env` file:
 ```ini
 GEMINI_API_KEY=your_google_gemini_api_key
 USER_AGENT=Mozilla/5.0 (Windows NT 10.0; Win64; x64)
-DEFAULT_RATE_LIMIT_SECONDS=1.0
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 ```
 
@@ -188,4 +207,4 @@ CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 
 ## License & Responsible Usage
 
-Distributed under the MIT License. Scrape operations are designed for personal job monitoring and include configurable rate-limiting and user-agent settings. Please respect the terms of service of individual job platforms when running scrape pipelines.
+Distributed under the MIT License. Scrape operations are designed for personal job monitoring and include configurable rate-limiting, circuit breakers, and user-agent settings. Please respect the terms of service of individual job platforms when running scrape pipelines.

@@ -18,6 +18,7 @@ from tkinter.scrolledtext import ScrolledText
 # High-DPI Awareness for crisp rendering on modern Windows displays
 try:
     import ctypes
+
     ctypes.windll.shcore.SetProcessDpiAwareness(1)
 except Exception:
     pass
@@ -51,21 +52,32 @@ def create_shortcut(target_exe: str, shortcut_path: str, icon_path: str = None):
     install_dir = os.path.dirname(target_exe)
     shortcut_path = os.path.abspath(shortcut_path)
 
-    icon_target = os.path.abspath(icon_path) if icon_path and os.path.exists(icon_path) else target_exe
+    icon_target = (
+        os.path.abspath(icon_path)
+        if icon_path and os.path.exists(icon_path)
+        else target_exe
+    )
 
     ps_script = (
-        f'$WshShell = New-Object -ComObject WScript.Shell; '
+        f"$WshShell = New-Object -ComObject WScript.Shell; "
         f'$Shortcut = $WshShell.CreateShortcut("{shortcut_path}"); '
         f'$Shortcut.TargetPath = "{target_exe}"; '
         f'$Shortcut.WorkingDirectory = "{install_dir}"; '
         f'$Shortcut.IconLocation = "{icon_target}"; '
-        f'$Shortcut.Save()'
+        f"$Shortcut.Save()"
     )
 
     try:
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         subprocess.run(
-            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                ps_script,
+            ],
             check=True,
             creationflags=flags,
         )
@@ -105,12 +117,24 @@ def register_uninstaller(install_dir: str, exe_path: str):
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
             winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, "Job Aggregator")
             winreg.SetValueEx(key, "DisplayIcon", 0, winreg.REG_SZ, exe_path)
-            winreg.SetValueEx(key, "UninstallString", 0, winreg.REG_SZ, f'"{uninstaller_exe}"')
-            winreg.SetValueEx(key, "QuietUninstallString", 0, winreg.REG_SZ, f'"{uninstaller_exe}"')
+            winreg.SetValueEx(
+                key, "UninstallString", 0, winreg.REG_SZ, f'"{uninstaller_exe}"'
+            )
+            winreg.SetValueEx(
+                key, "QuietUninstallString", 0, winreg.REG_SZ, f'"{uninstaller_exe}"'
+            )
             winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, "Yasiru Kaveeshwara")
-            winreg.SetValueEx(key, "Contact", 0, winreg.REG_SZ, "kaveeshwaray@gmail.com")
-            winreg.SetValueEx(key, "HelpLink", 0, winreg.REG_SZ, "https://github.com/YasiruKaveeshwara/Job-Aggregator")
-            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.1.0")
+            winreg.SetValueEx(
+                key, "Contact", 0, winreg.REG_SZ, "kaveeshwaray@gmail.com"
+            )
+            winreg.SetValueEx(
+                key,
+                "HelpLink",
+                0,
+                winreg.REG_SZ,
+                "https://github.com/YasiruKaveeshwara/Job-Aggregator",
+            )
+            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.2.1")
             winreg.SetValueEx(key, "InstallLocation", 0, winreg.REG_SZ, install_dir)
             winreg.SetValueEx(key, "NoModify", 0, winreg.REG_DWORD, 1)
             winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 1)
@@ -148,7 +172,9 @@ class SetupWizardGUI:
         )
 
         default_dir = os.path.join(
-            os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "Programs", "JobAggregator"
+            os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
+            "Programs",
+            "JobAggregator",
         )
         self.install_dir_var = tk.StringVar(value=default_dir)
         self.desktop_shortcut_var = tk.BooleanVar(value=True)
@@ -381,7 +407,9 @@ class SetupWizardGUI:
         self.install_dir_var.set(target_dir)
 
         if not target_dir:
-            messagebox.showerror("Error", "Please select a valid installation directory.")
+            messagebox.showerror(
+                "Error", "Please select a valid installation directory."
+            )
             return
 
         payload_type, payload_path = self._find_payload_source()
@@ -395,7 +423,9 @@ class SetupWizardGUI:
         self._build_installing_view()
 
         threading.Thread(
-            target=self._do_installation, args=(payload_type, payload_path, target_dir), daemon=True
+            target=self._do_installation,
+            args=(payload_type, payload_path, target_dir),
+            daemon=True,
         ).start()
 
     def _build_installing_view(self):
@@ -442,15 +472,30 @@ class SetupWizardGUI:
         body.pack(fill="both", expand=True)
 
         self.progress_bar = ttk.Progressbar(
-            body, orient="horizontal", mode="determinate", style="Accent.Horizontal.TProgressbar"
+            body,
+            orient="horizontal",
+            mode="determinate",
+            style="Accent.Horizontal.TProgressbar",
         )
         self.progress_bar.pack(fill="x", pady=(0, 12))
 
-        lbl_log = tk.Label(body, text="Installation Log Output:", font=("Segoe UI", 9, "bold"), bg="#f8fafc", fg="#0f172a")
+        lbl_log = tk.Label(
+            body,
+            text="Installation Log Output:",
+            font=("Segoe UI", 9, "bold"),
+            bg="#f8fafc",
+            fg="#0f172a",
+        )
         lbl_log.pack(anchor="w", pady=(0, 4))
 
         self.log_box = ScrolledText(
-            body, height=11, font=("Consolas", 8), bg="#090d16", fg="#38bdf8", bd=1, relief="solid"
+            body,
+            height=11,
+            font=("Consolas", 8),
+            bg="#090d16",
+            fg="#38bdf8",
+            bd=1,
+            relief="solid",
         )
         self.log_box.pack(fill="both", expand=True)
 
@@ -459,7 +504,14 @@ class SetupWizardGUI:
         footer.pack_propagate(False)
 
         self.btn_cancel_install = tk.Button(
-            footer, text="Installing...", state="disabled", font=("Segoe UI", 9, "bold"), bg="#e2e8f0", fg="#94a3b8", width=14, height=2
+            footer,
+            text="Installing...",
+            state="disabled",
+            font=("Segoe UI", 9, "bold"),
+            bg="#e2e8f0",
+            fg="#94a3b8",
+            width=14,
+            height=2,
         )
         self.btn_cancel_install.pack(side="right", padx=24, pady=12)
 
@@ -495,13 +547,19 @@ class SetupWizardGUI:
 
     def _do_installation(self, payload_type: str, payload_path: str, target_dir: str):
         try:
-            self._log(f"[INIT] Target Directory: {target_dir}", "Initializing target directory...")
+            self._log(
+                f"[INIT] Target Directory: {target_dir}",
+                "Initializing target directory...",
+            )
             self._set_progress(5)
 
             os.makedirs(target_dir, exist_ok=True)
 
             if payload_type == "zip":
-                self._log(f"[PAYLOAD] Unpacking compressed application archive: {os.path.basename(payload_path)}", "Extracting application binaries...")
+                self._log(
+                    f"[PAYLOAD] Unpacking compressed application archive: {os.path.basename(payload_path)}",
+                    "Extracting application binaries...",
+                )
                 with zipfile.ZipFile(payload_path, "r") as zf:
                     infolist = zf.infolist()
                     total_items = len(infolist)
@@ -513,7 +571,10 @@ class SetupWizardGUI:
                         pct = 10 + (extracted_count / max(1, total_items)) * 75
                         self._set_progress(pct)
                         if extracted_count % 15 == 0 or extracted_count == total_items:
-                            self._log(f"[EXTRACT] {member.filename}", f"Extracting {os.path.basename(member.filename)}...")
+                            self._log(
+                                f"[EXTRACT] {member.filename}",
+                                f"Extracting {os.path.basename(member.filename)}...",
+                            )
             else:
                 all_files = []
                 for root_dir, _, files in os.walk(payload_path):
@@ -521,7 +582,10 @@ class SetupWizardGUI:
                         all_files.append(os.path.join(root_dir, f))
 
                 total_items = len(all_files)
-                self._log(f"[PAYLOAD] Copying {total_items} application bundle files...", "Copying application files...")
+                self._log(
+                    f"[PAYLOAD] Copying {total_items} application bundle files...",
+                    "Copying application files...",
+                )
 
                 copied_count = 0
                 for item in os.listdir(payload_path):
@@ -544,8 +608,14 @@ class SetupWizardGUI:
                                 copied_count += 1
                                 pct = 10 + (copied_count / max(1, total_items)) * 75
                                 self._set_progress(pct)
-                                if copied_count % 15 == 0 or copied_count == total_items:
-                                    self._log(f"[COPY] {os.path.relpath(dst_f, target_dir)}", f"Copying {f}...")
+                                if (
+                                    copied_count % 15 == 0
+                                    or copied_count == total_items
+                                ):
+                                    self._log(
+                                        f"[COPY] {os.path.relpath(dst_f, target_dir)}",
+                                        f"Copying {f}...",
+                                    )
                     else:
                         shutil.copy2(s, d)
                         copied_count += 1
@@ -566,17 +636,26 @@ class SetupWizardGUI:
                 except Exception:
                     pass
 
-            self._log("[SECURITY] Unblocking binary alternate data streams...", "Unblocking files for Windows Security...")
+            self._log(
+                "[SECURITY] Unblocking binary alternate data streams...",
+                "Unblocking files for Windows Security...",
+            )
             unblock_directory(target_dir)
 
             # Configure Debug Mode flag file
             debug_flag_file = os.path.join(target_dir, "debug_mode.flag")
             if self.debug_mode_var.get():
-                self._log("[CONFIG] Enabling Developer Mode (DevTools / Console Inspector)...", "Configuring Developer Mode...")
+                self._log(
+                    "[CONFIG] Enabling Developer Mode (DevTools / Console Inspector)...",
+                    "Configuring Developer Mode...",
+                )
                 with open(debug_flag_file, "w", encoding="utf-8") as f:
                     f.write("DEBUG_ENABLED=1\n")
             else:
-                self._log("[CONFIG] Production Mode configured (no terminal window).", "Finalizing installation...")
+                self._log(
+                    "[CONFIG] Production Mode configured (no terminal window).",
+                    "Finalizing installation...",
+                )
                 if os.path.exists(debug_flag_file):
                     try:
                         os.remove(debug_flag_file)
@@ -587,7 +666,10 @@ class SetupWizardGUI:
 
             # Desktop shortcut
             if self.desktop_shortcut_var.get():
-                self._log("[SHORTCUT] Creating Desktop shortcut...", "Creating Desktop shortcut...")
+                self._log(
+                    "[SHORTCUT] Creating Desktop shortcut...",
+                    "Creating Desktop shortcut...",
+                )
                 desktop = get_desktop_path()
                 shortcut_path = os.path.join(desktop, "Job Aggregator.lnk")
                 create_shortcut(exe_path, shortcut_path, icon_path)
@@ -596,7 +678,10 @@ class SetupWizardGUI:
 
             # Start Menu shortcut
             if self.start_menu_var.get():
-                self._log("[SHORTCUT] Creating Start Menu shortcut...", "Creating Start Menu shortcut...")
+                self._log(
+                    "[SHORTCUT] Creating Start Menu shortcut...",
+                    "Creating Start Menu shortcut...",
+                )
                 start_menu = get_start_menu_path()
                 shortcut_path = os.path.join(start_menu, "Job Aggregator.lnk")
                 create_shortcut(exe_path, shortcut_path, icon_path)
@@ -604,11 +689,17 @@ class SetupWizardGUI:
             self._set_progress(98)
 
             # Register in Add/Remove Programs
-            self._log("[REGISTRY] Registering uninstaller in Windows Control Panel...", "Registering uninstaller...")
+            self._log(
+                "[REGISTRY] Registering uninstaller in Windows Control Panel...",
+                "Registering uninstaller...",
+            )
             register_uninstaller(target_dir, exe_path)
 
             self._set_progress(100)
-            self._log("[COMPLETE] Installation completed successfully!", "Installation Finished!")
+            self._log(
+                "[COMPLETE] Installation completed successfully!",
+                "Installation Finished!",
+            )
             time.sleep(0.4)
 
             self.ui_queue.put(("finish", exe_path))

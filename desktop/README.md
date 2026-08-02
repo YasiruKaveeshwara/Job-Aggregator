@@ -11,6 +11,7 @@ Native Windows desktop distribution for **Job Aggregator**. Embeds the FastAPI b
 - **Developer Mode Toggle**: Custom checkbox in installer GUI enables/disables DevTools inspector (F12) via a `debug_mode.flag` file.
 - **Persistent Data Storage**: SQLite database automatically initialized at `%APPDATA%\JobAggregator\jobs.db` (`C:\Users\<Username>\AppData\Roaming\JobAggregator\jobs.db`).
 - **Windows Security & Unblocking**: Includes automated PowerShell `Unblock-File` execution during setup to remove Zone.Identifier alternate data streams.
+- **LZMA Compressed Payload**: The entire application directory is compressed into a single `payload.zip` using LZMA compression (~55 MB), bundled into the setup executable for efficient distribution.
 - **Standard Windows Installation & Uninstallation**:
   - Registered under Windows Registry (`HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\JobAggregator`).
   - Appears in **Windows Settings > Apps** & **Control Panel**.
@@ -27,12 +28,15 @@ Closing the main application window (clicking X or `Alt+F4`) gracefully terminat
 ## Installation & Launch Options
 
 ### Option 1: Standard One-Click Installer (`JobAggregatorSetup.exe`)
+
 Double-click `JobAggregatorSetup.exe` in `desktop/dist/`. The setup wizard presents a 3-step modern GUI:
+
 1. Destination folder selection (automatically formats path to append `\JobAggregator`).
 2. Option checkbuttons for Desktop shortcut, Start Menu shortcut, and Developer Mode.
 3. Live real-time installation progress bar and log console.
 
 ### Option 2: Batch Launcher (`start.bat` / `install.bat`)
+
 - **`start.bat`**: Direct 1-click launcher for portable/dev builds. Unblocks binary alternate data streams and launches `JobAggregator.exe`.
 - **`install.bat`**: Unblocks binary files and launches `JobAggregatorSetup.exe`.
 
@@ -41,6 +45,7 @@ Double-click `JobAggregatorSetup.exe` in `desktop/dist/`. The setup wizard prese
 ## Uninstallation
 
 Uninstalling can be performed via two equivalent methods:
+
 1. **Windows Settings**: Open **Settings → Apps → Installed apps → Job Aggregator** → click **Uninstall**.
 2. **Direct Execution**: Run `uninstall.exe` inside the installed application directory (`%LOCALAPPDATA%\Programs\JobAggregator\uninstall.exe`).
 
@@ -49,42 +54,46 @@ The uninstall wizard presents a confirmation view, progress bar, log console, an
 
 ---
 
-## 4-Step Build Sequence from Source
+## 3-Step Build Sequence from Source
 
-To compile the entire desktop distribution package from scratch, execute the following steps in order from the `desktop/` directory:
+To compile the entire desktop distribution package from scratch:
 
 ```powershell
-cd desktop
+# First, build the frontend static export
+cd frontend
+npm run build
+
+# Then build the desktop package
+cd ..\desktop
 pip install -r requirements.txt
 
 # Step 1: Build the main application payload (onedir)
 python -m PyInstaller -y build.spec
 # -> Generates dist/JobAggregator/ (contains JobAggregator.exe & dependencies)
 
-# Step 2: Build the standalone uninstaller wizard (onefile)
-python -m PyInstaller -y uninstaller_build.spec
-# -> Generates dist/uninstall.exe
+# Step 2: Compress payload with LZMA into a single zip
+python make_payload.py
+# -> Generates dist/payload.zip (~55 MB compressed)
 
-# Step 3: Bundle uninstaller into the main app payload
-copy dist\uninstall.exe dist\JobAggregator\uninstall.exe
-
-# Step 4: Build the single setup wizard installer
+# Step 3: Build the single setup wizard installer
 python -m PyInstaller -y installer_build.spec
-# -> Generates dist/JobAggregatorSetup.exe
+# -> Generates dist/JobAggregatorSetup.exe (~67 MB self-extracting installer)
 ```
+
+> **Note**: The old 4-step process (separate uninstaller build + manual copy) has been replaced. The uninstaller is now pre-bundled in the payload.
 
 ---
 
 ## Artifact Locations Summary
 
-| File / Folder | Location |
-| :--- | :--- |
-| **Setup Installer Executable** | `desktop/dist/JobAggregatorSetup.exe` |
-| **Standalone App Directory** | `desktop/dist/JobAggregator/` |
-| **Main Executable** | `desktop/dist/JobAggregator/JobAggregator.exe` |
-| **Uninstaller Executable** | `desktop/dist/JobAggregator/uninstall.exe` |
-| **Installed App Target** | `%LOCALAPPDATA%\Programs\JobAggregator\` |
-| **Database File (`jobs.db`)** | `%APPDATA%\JobAggregator\jobs.db` |
+| File / Folder                  | Location                                       |
+| :----------------------------- | :--------------------------------------------- |
+| **Setup Installer Executable** | `desktop/dist/JobAggregatorSetup.exe`          |
+| **Compressed Payload**         | `desktop/dist/payload.zip`                     |
+| **Standalone App Directory**   | `desktop/dist/JobAggregator/`                  |
+| **Main Executable**            | `desktop/dist/JobAggregator/JobAggregator.exe` |
+| **Installed App Target**       | `%LOCALAPPDATA%\Programs\JobAggregator\`       |
+| **Database File (`jobs.db`)**  | `%APPDATA%\JobAggregator\jobs.db`              |
 
 ---
 

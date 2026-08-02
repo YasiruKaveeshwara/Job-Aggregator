@@ -1,6 +1,6 @@
 # Job Aggregator — Frontend Web Application
 
-Modern Next.js 16 frontend for **Job Aggregator**. Features a sleek, responsive dashboard for browsing Sri Lankan software engineering job listings, managing job application statuses, triggering live scraping pipelines, and configuring Gemini AI relevance settings.
+Modern Next.js 16 frontend for **Job Aggregator**. Features a sleek, responsive dashboard for browsing Sri Lankan software engineering job listings from 10 platforms, managing job application statuses, triggering live scraping pipelines, and configuring Gemini AI relevance settings.
 
 ---
 
@@ -17,10 +17,12 @@ Modern Next.js 16 frontend for **Job Aggregator**. Features a sleek, responsive 
 ## Page Routes & Core Components
 
 ### App Routes (`src/app/`)
+
 - `/` - **Dashboard Page**: Search filters, role dropdowns, live stats HUD, job cards, and pagination.
-- `/admin` - **Admin Portal**: Executive control center with sections for *Sources & Scrape Control*, *Gemini AI Credentials*, *Target Keywords*, *Locations*, and *Scrape Run History*.
+- `/admin` - **Admin Portal**: Executive control center with sections for _Sources & Scrape Control_, _Gemini AI Credentials_, _Target Keywords_, _Locations_, and _Scrape Run History_.
 
 ### Components (`src/components/`)
+
 - `Nav.tsx`: Glassmorphic top navigation bar with brand logo mark and active step pills.
 - `JobCard.tsx`: Job listing card with company initials, platform badge, role tags, and application state dropdown.
 - `FilterBar.tsx`: Search query, role selector, platform source chips, and date range inputs.
@@ -35,6 +37,7 @@ Modern Next.js 16 frontend for **Job Aggregator**. Features a sleek, responsive 
 ## Quick Start & Setup
 
 ### Prerequisites
+
 - Node.js 18+
 
 ### 1. Installation
@@ -49,6 +52,7 @@ npm install
 ```bash
 npm run dev
 ```
+
 Open [http://localhost:3000](http://localhost:3000) in your browser. (Ensure backend server is running on port 8000).
 
 ### 3. Production Static Build
@@ -56,12 +60,13 @@ Open [http://localhost:3000](http://localhost:3000) in your browser. (Ensure bac
 ```bash
 npm run build
 ```
+
 Generates production static export files in `frontend/out`, ready for deployment or desktop bundling.
 
 ---
 
 ## Integration with Sub-projects
 
-- **[Backend Engine](../backend/README.md)**: FastAPI REST service powering job aggregation and LLM filtering.
+- **[Backend Engine](../backend/README.md)**: FastAPI REST service powering job aggregation, 10-site scraping, and Gemini AI filtering.
 - **[Desktop App](../desktop/README.md)**: PyWebview native container embedding the static frontend export.
 - **[Root Documentation](../README.md)**: Master repository architecture overview.
