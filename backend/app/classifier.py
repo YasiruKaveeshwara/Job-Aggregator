@@ -20,20 +20,12 @@ from typing import Optional
 
 from sqlmodel import Session
 
-from app.config import GEMINI_BATCH_SIZE, GEMINI_MODEL
+from app.config import GEMINI_BATCH_SIZE
 from app.db import engine
 from app.models import Job
 from app.secrets import get_secret
 
 logger = logging.getLogger(__name__)
-
-# Fallback models in priority order if primary model hits rate limits
-_MODEL_FALLBACK_CHAIN = [
-    "gemini-3.1-flash-lite",
-    "gemini-flash-lite-latest",
-    "gemma-4-26b-a4b-it",
-    "gemini-3.5-flash",
-]
 
 # Obvious non-IT title patterns for instant local filtering
 _OBVIOUS_NON_TECH_PATTERNS = re.compile(
@@ -87,6 +79,7 @@ Jobs:
 
 # ── Public API ───────────────────────────────────────────────────────
 
+
 def classify_new_jobs(job_ids: list[int]) -> dict[str, int]:
     """
     Classify jobs by ID and auto-REMOVE irrelevant ones.
@@ -96,7 +89,11 @@ def classify_new_jobs(job_ids: list[int]) -> dict[str, int]:
     if not job_ids:
         return {"kept": 0, "removed": 0, "skipped": 0}
 
-    logger.info("[classifier] Classifying %d jobs (batch size %d)", len(job_ids), GEMINI_BATCH_SIZE)
+    logger.info(
+        "[classifier] Classifying %d jobs (batch size %d)",
+        len(job_ids),
+        GEMINI_BATCH_SIZE,
+    )
 
     # 1. Load jobs from DB
     with Session(engine) as session:
@@ -115,7 +112,10 @@ def classify_new_jobs(job_ids: list[int]) -> dict[str, int]:
 
     if local_removed_ids:
         _bulk_remove(local_removed_ids)
-        logger.info("[classifier] Local pre-filter removed %d obvious non-IT jobs", len(local_removed_ids))
+        logger.info(
+            "[classifier] Local pre-filter removed %d obvious non-IT jobs",
+            len(local_removed_ids),
+        )
 
     total_kept = 0
     total_removed = len(local_removed_ids)
@@ -136,7 +136,10 @@ def classify_new_jobs(job_ids: list[int]) -> dict[str, int]:
 
     # 3. Process remaining jobs in batches with Gemini AI
     remaining_ids = [j.id for j in remaining_jobs]
-    batches = [remaining_ids[i : i + GEMINI_BATCH_SIZE] for i in range(0, len(remaining_ids), GEMINI_BATCH_SIZE)]
+    batches = [
+        remaining_ids[i : i + GEMINI_BATCH_SIZE]
+        for i in range(0, len(remaining_ids), GEMINI_BATCH_SIZE)
+    ]
 
     for batch_num, batch_ids in enumerate(batches, 1):
         batch_jobs = [job_map[jid] for jid in batch_ids if jid in job_map]
@@ -149,7 +152,10 @@ def classify_new_jobs(job_ids: list[int]) -> dict[str, int]:
             # AI failed all model fallbacks — keep as NEW
             total_skipped += len(batch_jobs)
             total_kept += len(batch_jobs)
-            logger.warning("[classifier] Batch %d AI classification unavailable — kept as NEW", batch_num)
+            logger.warning(
+                "[classifier] Batch %d AI classification unavailable — kept as NEW",
+                batch_num,
+            )
             continue
 
         # Apply AI decisions
@@ -166,38 +172,47 @@ def classify_new_jobs(job_ids: list[int]) -> dict[str, int]:
 
     logger.info(
         "[classifier] Complete — total kept=%d, total removed=%d, skipped=%d",
-        total_kept, total_removed, total_skipped,
+        total_kept,
+        total_removed,
+        total_skipped,
     )
     return {"kept": total_kept, "removed": total_removed, "skipped": total_skipped}
 
 
 # ── Internal AI call with model fallback chain ───────────────────────
 
+
 def _classify_batch_with_fallbacks(jobs: list[Job]) -> Optional[dict[int, bool]]:
-    """Try primary GEMINI_MODEL first, then fallback model chain on 429 errors."""
-    models_to_try = [GEMINI_MODEL] + [m for m in _MODEL_FALLBACK_CHAIN if m != GEMINI_MODEL]
+    """Use the model selected in Settings; unavailable models leave jobs unchanged."""
+    model_name = get_secret("GEMINI_MODEL")
+    if not model_name:
+        logger.warning("GEMINI_MODEL is not configured — skipping AI classification")
+        return None
 
-    for model_name in models_to_try:
-        logger.info("[classifier] Attempting batch classification with model '%s'...", model_name)
-        res = _classify_batch_single_model(jobs, model_name)
-        if res is not None:
-            return res
-        logger.warning("[classifier] Model '%s' failed, trying fallback...", model_name)
-
-    return None
+    logger.info(
+        "[classifier] Attempting batch classification with model '%s'...", model_name
+    )
+    return _classify_batch_single_model(jobs, model_name)
 
 
-def _classify_batch_single_model(jobs: list[Job], model_name: str) -> Optional[dict[int, bool]]:
+def _classify_batch_single_model(
+    jobs: list[Job], model_name: str
+) -> Optional[dict[int, bool]]:
     """Call Gemini API for a single model with backoff retry."""
     import time
+
     try:
         from google import genai
         from google.genai import types
 
         api_key = get_secret("GEMINI_API_KEY")
         client = genai.Client(api_key=api_key)
-        job_entries = [{"id": j.id, "title": j.job_title, "company": j.company_name} for j in jobs]
-        prompt = _USER_PROMPT_TEMPLATE.format(jobs_json=json.dumps(job_entries, ensure_ascii=False))
+        job_entries = [
+            {"id": j.id, "title": j.job_title, "company": j.company_name} for j in jobs
+        ]
+        prompt = _USER_PROMPT_TEMPLATE.format(
+            jobs_json=json.dumps(job_entries, ensure_ascii=False)
+        )
         full_prompt = f"{_SYSTEM_PROMPT}\n\n{prompt}"
 
         for attempt in range(1, 3):
@@ -213,7 +228,11 @@ def _classify_batch_single_model(jobs: list[Job], model_name: str) -> Optional[d
                 )
                 raw_text = response.text.strip()
                 decisions_list: list[dict] = json.loads(raw_text)
-                return {item["id"]: bool(item["keep"]) for item in decisions_list if "id" in item and "keep" in item}
+                return {
+                    item["id"]: bool(item["keep"])
+                    for item in decisions_list
+                    if "id" in item and "keep" in item
+                }
             except Exception as e:
                 err_str = str(e)
                 if ("429" in err_str or "quota" in err_str.lower()) and attempt < 2:

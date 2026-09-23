@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSettingsStatus, updateSetting } from "@/lib/api";
+import { getGeminiModels, getSettingsStatus, updateSetting, type GeminiModel } from "@/lib/api";
 
 export default function SettingsPanel() {
 	const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
 	const [inputValue, setInputValue] = useState("");
+	const [models, setModels] = useState<GeminiModel[]>([]);
+	const [selectedModel, setSelectedModel] = useState("");
+	const [loadingModels, setLoadingModels] = useState(false);
 	const [showKey, setShowKey] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -14,7 +17,34 @@ export default function SettingsPanel() {
 	async function refreshStatus() {
 		try {
 			const status = await getSettingsStatus();
-			setGeminiConfigured(status["GEMINI_API_KEY"] ?? false);
+			setGeminiConfigured(status["GEMINI_API_KEY"] === true);
+			setSelectedModel(typeof status["GEMINI_MODEL"] === "string" ? status["GEMINI_MODEL"] : "");
+		} catch (e) {
+			setError(e instanceof Error ? e.message : String(e));
+		}
+	}
+
+	async function loadModels(apiKey?: string) {
+		setLoadingModels(true);
+		setError(null);
+		try {
+			const availableModels = await getGeminiModels(apiKey);
+			setModels(availableModels);
+			setSelectedModel((current) => current || availableModels[0]?.id || "");
+		} catch (e) {
+			setModels([]);
+			setError(e instanceof Error ? e.message : String(e));
+		} finally {
+			setLoadingModels(false);
+		}
+	}
+
+	async function handleModelChange(model: string) {
+		setSelectedModel(model);
+		if (!model) return;
+		try {
+			await updateSetting("GEMINI_MODEL", model);
+			setSuccessMessage("Gemini model saved successfully.");
 		} catch (e) {
 			setError(e instanceof Error ? e.message : String(e));
 		}
@@ -25,7 +55,11 @@ export default function SettingsPanel() {
 
 		void getSettingsStatus()
 			.then((status) => {
-				if (active) setGeminiConfigured(status["GEMINI_API_KEY"] ?? false);
+				if (active) {
+					setGeminiConfigured(status["GEMINI_API_KEY"] === true);
+					setSelectedModel(typeof status["GEMINI_MODEL"] === "string" ? status["GEMINI_MODEL"] : "");
+					if (status["GEMINI_API_KEY"] === true) void loadModels();
+				}
 			})
 			.catch((e) => {
 				if (active) setError(e instanceof Error ? e.message : String(e));
@@ -43,9 +77,13 @@ export default function SettingsPanel() {
 		setSuccessMessage(null);
 		try {
 			await updateSetting("GEMINI_API_KEY", inputValue.trim());
+			const availableModels = models.length > 0 ? models : await getGeminiModels(inputValue.trim());
+			const modelToSave = selectedModel || availableModels[0]?.id;
+			if (modelToSave) await updateSetting("GEMINI_MODEL", modelToSave);
 			setInputValue("");
 			setSuccessMessage("Gemini API Key saved and encrypted successfully.");
 			await refreshStatus();
+			await loadModels();
 			setTimeout(() => setSuccessMessage(null), 4000);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : String(e));
@@ -93,6 +131,54 @@ export default function SettingsPanel() {
 								fill='white'
 							/>
 						</svg>
+					</div>
+
+					<div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+						<label htmlFor='gemini-model' style={{ fontSize: "13px", fontWeight: "600", color: "var(--text-primary)" }}>
+							Gemini Model
+						</label>
+						<select
+							id='gemini-model'
+							value={selectedModel}
+							disabled={loadingModels || models.length === 0}
+							onChange={(e) => void handleModelChange(e.target.value)}
+							style={{
+								width: "100%",
+								height: "42px",
+								borderRadius: "var(--radius)",
+								border: "1px solid var(--border-strong)",
+								padding: "0 12px",
+								fontSize: "13px",
+								background: "var(--bg-base)",
+								color: "var(--text-primary)",
+							}}>
+							{models.length === 0 && (
+								<option value=''>
+									{loadingModels ? "Loading available models..." : "Enter an API key to load models"}
+								</option>
+							)}
+							{models.map((model) => (
+								<option key={model.id} value={model.id}>
+									{model.display_name} ({model.id})
+								</option>
+							))}
+						</select>
+						<button
+							type='button'
+							onClick={() => void loadModels(inputValue.trim() || undefined)}
+							disabled={loadingModels || (!inputValue.trim() && !geminiConfigured)}
+							style={{
+								alignSelf: "flex-start",
+								border: "none",
+								background: "none",
+								padding: 0,
+								color: "var(--accent)",
+								fontSize: "11px",
+								fontWeight: "600",
+								cursor: "pointer",
+							}}>
+							{loadingModels ? "Loading models..." : "Refresh available models"}
+						</button>
 					</div>
 					<div>
 						<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
