@@ -1,7 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { startScrape, getScrapeStatus, getScrapeRuns, refilterScrapeRun, toggleSource, cancelScrape } from "@/lib/api";
+import {
+	startScrape,
+	getScrapeStatus,
+	getScrapeRuns,
+	getSources,
+	refilterScrapeRun,
+	toggleSource,
+	cancelScrape,
+} from "@/lib/api";
 import { useLiveRelativeTime } from "@/lib/datetime";
 import type { Source, ScrapeRun, SiteResult, ClassifierResult } from "@/types/job";
 
@@ -55,6 +63,17 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 	const [now, setNow] = useState<number>(Date.now());
 	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const notifiedModelUpdate = useRef<string | null>(null);
+	const lastSiteResultsRef = useRef("");
+
+	const refreshSources = useCallback(async () => {
+		if (!onSourcesChange) return;
+		try {
+			onSourcesChange(await getSources());
+		} catch (refreshError) {
+			console.error("Could not refresh source fetch details", refreshError);
+			setError("Could not refresh source fetch details. Please refresh the page.");
+		}
+	}, [onSourcesChange]);
 
 	// Live tick timer every 1s when scraping
 	useEffect(() => {
@@ -85,6 +104,11 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 							if ("found" in result) sourceResults[site] = result;
 						}
 						setMergedResults((prev) => ({ ...prev, ...sourceResults }));
+						const siteResultsSnapshot = JSON.stringify(sourceResults);
+						if (siteResultsSnapshot !== lastSiteResultsRef.current) {
+							lastSiteResultsRef.current = siteResultsSnapshot;
+							void refreshSources();
+						}
 					}
 					const classifierResult = getClassifierResult(run);
 					const classifierRunning = classifierResult?.status === "running";
@@ -103,11 +127,13 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 						setRunState("done");
 						setCancelling(false);
 						if (!classifierRunning) {
+							await refreshSources();
 							stopPolling();
 							onRunFinished?.();
 						}
 					} else if (run.status === "FAILED") {
 						setRunState("failed");
+						await refreshSources();
 						stopPolling();
 						setCancelling(false);
 						onRunFinished?.();
@@ -118,7 +144,7 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 				}
 			}, 1500);
 		},
-		[onRunFinished, stopPolling],
+		[onRunFinished, refreshSources, stopPolling],
 	);
 
 	useEffect(() => {
@@ -170,6 +196,7 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 
 	const handleStart = async (sites: string[] | "all") => {
 		setError(null);
+		lastSiteResultsRef.current = "";
 		setRunState("running");
 		setCancelling(false);
 		try {

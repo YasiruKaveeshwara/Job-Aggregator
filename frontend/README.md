@@ -19,7 +19,7 @@ Modern Next.js 16 frontend for **Job Aggregator**. Features a sleek, responsive 
 ### App Routes (`src/app/`)
 
 - `/` - **Dashboard Page**: Search filters, role dropdowns, live stats HUD, job cards, and pagination.
-- `/admin` - **Admin Portal**: Executive control center with sections for _Sources & Scrape Control_, _Gemini AI Credentials_, _Target Keywords_, _Locations_, and _Scrape Run History_.
+- `/admin` - **Admin Portal**: Executive control center with _Sources & Scrape Control_, a persistent _Last Fetch Summary_, _Gemini AI Credentials_, _Target Keywords_, _Locations_, and _Scrape Run History_.
 - **AI model recovery**: When a Gemini model errors or returns invalid classification output, other available models are tried. Jobs still unclassified remain saved and can be retried from the scrape summary or run history after selecting a working model/API key.
 - **Completion Notifications**: The Admin Portal can request browser notification permission for web users; the packaged desktop app sends Windows toast notifications and includes a test button.
 
@@ -28,7 +28,8 @@ Modern Next.js 16 frontend for **Job Aggregator**. Features a sleek, responsive 
 - `Nav.tsx`: Glassmorphic top navigation bar with brand logo mark and active step pills.
 - `JobCard.tsx`: Job listing card with company initials, platform badge, role tags, and application state dropdown.
 - `FilterBar.tsx`: Search query, role selector, platform source chips, and date range inputs.
-- `ScrapeControlPanel.tsx`: Live fetch operations HUD displaying real-time elapsed timer, estimated remaining duration, animated progress bar, site execution chips, and AI classification stats.
+- `ScrapeControlPanel.tsx`: Live fetch operations HUD displaying real-time elapsed timer, estimated remaining duration, animated progress bar, and per-source results that refresh as each source completes.
+- `LastFetchSummary.tsx`: Separate summary of the latest persisted run, including listings found, new jobs, duplicates, AI kept/filtered counts, source errors, and jobs awaiting AI retry.
 - `SettingsPanel.tsx`: Sleek Gemini API key card with status liveness pill, password mask view toggle, and Google AI Studio guide link.
 - `KeywordEditor.tsx`: Target job title keyword management and negative exclusion terms.
 - `SearchLocationEditor.tsx`: Target district geographic location preferences.

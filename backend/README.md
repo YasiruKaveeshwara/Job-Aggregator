@@ -11,6 +11,7 @@ FastAPI-powered backend engine for the **Job Aggregator** application. It handle
 - **Circuit Breaker & Pre-flight Probes**: Every scraper performs a 5-second connectivity check before entering its keyword loop. If a site is unreachable, the circuit breaker opens instantly and all remaining requests are skipped — no wasted time on down servers.
 - **Split HTTP Timeouts**: Separate connect timeout (5s) for fast detection of unreachable hosts, and read timeout (15s) for slow-but-alive servers.
 - **Deduplication Engine**: Matches job titles and company names to eliminate duplicate listings across platforms.
+- **Live per-source progress**: Each source's scrape timestamp and result are persisted as it finishes, so the Admin Portal can update source details before the full run completes.
 - **AI Relevance Classifier**: Uses Google Gemini 3.1 Flash Lite to automatically filter out non-software job postings based on target keywords.
 - **AI Model Fallback & Refiltering**: Tries other available Gemini models when the selected model fails, remembers the last working model, and retains unfiltered jobs for retry from scrape history.
 - **Editable AI Prompts**: System and user prompts are seeded into SQLite, editable at `/prompts`, and independently restorable to their original defaults.

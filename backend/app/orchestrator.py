@@ -298,6 +298,7 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
     """Fetch, normalize, and dedup postings from a single site."""
     site_start_time = time.time()
     site_new_ids: list[int] = []
+    site_result: dict | None = None
 
     # Check if site is enabled
     with Session(engine) as session:
@@ -398,32 +399,26 @@ def _process_site(run_id: int, site_name: str, new_job_ids: list[int]) -> None:
                 duration_seconds,
             )
 
-            _update_site_result(
-                run_id,
-                site_name,
-                {
-                    "found": found,
-                    "new": new_count,
-                    "duplicates": dup_count,
-                    "error": None,
-                    "duration_seconds": duration_seconds,
-                },
-            )
+            site_result = {
+                "found": found,
+                "new": new_count,
+                "duplicates": dup_count,
+                "error": None,
+                "duration_seconds": duration_seconds,
+            }
         else:
             duration_seconds = round(time.time() - site_start_time, 1)
-            _update_site_result(
-                run_id,
-                site_name,
-                {
-                    "found": 0,
-                    "new": 0,
-                    "duplicates": 0,
-                    "error": fetch_error,
-                    "duration_seconds": duration_seconds,
-                },
-            )
+            site_result = {
+                "found": 0,
+                "new": 0,
+                "duplicates": 0,
+                "error": fetch_error,
+                "duration_seconds": duration_seconds,
+            }
     finally:
         _update_source_timestamp(site_name)
+        if site_result is not None:
+            _update_site_result(run_id, site_name, site_result)
 
 
 def _enrich_new_job_descriptions(

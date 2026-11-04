@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getSources } from "@/lib/api";
 import type { Source } from "@/types/job";
 import ScrapeControlPanel from "@/components/ScrapeControlPanel";
+import LastFetchSummary from "@/components/LastFetchSummary";
 import RunHistoryTable from "@/components/RunHistoryTable";
 import KeywordEditor from "@/components/KeywordEditor";
 import SearchLocationEditor from "@/components/SearchLocationEditor";
@@ -86,13 +87,18 @@ export default function AdminPage() {
 	const [sources, setSources] = useState<Source[]>([]);
 	const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
-	const loadSources = () => {
+	const loadSources = useCallback(() => {
 		getSources().then(setSources).catch(console.error);
-	};
+	}, []);
 
 	useEffect(() => {
 		loadSources();
-	}, []);
+	}, [loadSources]);
+
+	const handleRunFinished = useCallback(() => {
+		setHistoryRefreshKey((v) => v + 1);
+		loadSources();
+	}, [loadSources]);
 
 	return (
 		<div className='container' style={{ paddingTop: 32, paddingBottom: 64, maxWidth: "1200px" }}>
@@ -184,15 +190,10 @@ export default function AdminPage() {
 						subtitle='Trigger scrape runs, monitor live real-time progress and configure platform sources.'
 					/>
 					<CompletionNotificationSettings />
-					<ScrapeControlPanel
-						sources={sources}
-						onSourcesChange={setSources}
-						onRunFinished={() => {
-							setHistoryRefreshKey((v) => v + 1);
-							loadSources();
-						}}
-					/>
+					<ScrapeControlPanel sources={sources} onSourcesChange={setSources} onRunFinished={handleRunFinished} />
 				</section>
+
+				<LastFetchSummary />
 
 				{/* Section 2: Application Settings (Gemini AI Key) */}
 				<section
