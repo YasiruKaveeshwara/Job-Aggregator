@@ -11,6 +11,7 @@ Modern Next.js 16 frontend for **Job Aggregator**. Features a sleek, responsive 
 - **Design System**: Vanilla CSS tokens in `globals.css` with dark glassmorphism aesthetic, sleek gradients, and micro-animations.
 - **Static Export**: Built with `output: "export"` (`trailingSlash: true`) generating static HTML/CSS/JS in `frontend/out` for bundling into the PyWebview desktop app.
 - **Dual API Origin Resolution**: `getApiBaseUrl()` in `lib/api.ts` automatically routes requests to `http://localhost:8000` during Next.js web dev mode (port 3000/3001), and falls back to `window.location.origin` in PyWebview desktop mode.
+- **Light & dark themes**: The header theme toggle saves the user's preference, uses the operating-system theme on first visit, and applies accessible colors across the dashboard, admin portal, forms, and prompt editor.
 
 ---
 
@@ -26,6 +27,7 @@ Modern Next.js 16 frontend for **Job Aggregator**. Features a sleek, responsive 
 ### Components (`src/components/`)
 
 - `Nav.tsx`: Glassmorphic top navigation bar with brand logo mark and active step pills.
+- `ThemeToggle.tsx`: Accessible header control for switching and persisting the application color theme.
 - `JobCard.tsx`: Job listing card with company initials, platform badge, role tags, and application state dropdown.
 - `FilterBar.tsx`: Search query, role selector, platform source chips, and date range inputs.
 - `ScrapeControlPanel.tsx`: Live fetch operations HUD displaying real-time elapsed timer, estimated remaining duration, animated progress bar, and per-source results that refresh as each source completes.

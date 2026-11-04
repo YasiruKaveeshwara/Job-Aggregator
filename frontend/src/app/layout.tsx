@@ -19,8 +19,22 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
 	return (
-		<html lang='en'>
+		<html lang='en' suppressHydrationWarning>
 			<head>
+				<script
+					dangerouslySetInnerHTML={{
+						__html: `try {
+							var savedTheme = localStorage.getItem("job-aggregator-theme");
+							var theme = savedTheme === "light" || savedTheme === "dark"
+								? savedTheme
+								: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+							document.documentElement.dataset.theme = theme;
+							document.documentElement.style.colorScheme = theme;
+						} catch (error) {
+							console.warn("Could not initialize the saved color theme", error);
+						}`,
+					}}
+				/>
 				<link rel='preconnect' href='https://fonts.googleapis.com' />
 				<link rel='preconnect' href='https://fonts.gstatic.com' crossOrigin='anonymous' />
 				<link

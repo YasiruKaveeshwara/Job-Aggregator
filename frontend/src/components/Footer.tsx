@@ -6,7 +6,7 @@ export default function Footer() {
 	return (
 		<footer
 			style={{
-				background: "rgba(255, 255, 255, 0.92)",
+				background: "var(--bg-glass)",
 				backdropFilter: "blur(16px)",
 				WebkitBackdropFilter: "blur(16px)",
 				borderTop: "1px solid var(--border)",
@@ -40,13 +40,29 @@ export default function Footer() {
 					<span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "14px", letterSpacing: "-0.02em" }}>
 						Job Aggregator
 					</span>
-					<span style={{ fontSize: "11px", fontWeight: 600, color: "#0284c7", background: "#e0f2fe", padding: "2px 8px", borderRadius: "12px", border: "1px solid #bae6fd" }}>
+					<span
+						style={{
+							fontSize: "11px",
+							fontWeight: 600,
+							color: "var(--cyan)",
+							background: "var(--cyan-bg)",
+							padding: "2px 8px",
+							borderRadius: "12px",
+							border: "1px solid var(--cyan-border)",
+						}}>
 						v1.2.2
 					</span>
 				</div>
 
 				{/* Center: Creator Signature & Contact */}
-				<div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-secondary)", fontSize: "13px" }}>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: "6px",
+						color: "var(--text-secondary)",
+						fontSize: "13px",
+					}}>
 					<span>Designed & Developed by</span>
 					<strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>Yasiru Kaveeshwara</strong>
 					<span style={{ color: "var(--border)" }}>•</span>
@@ -58,7 +74,7 @@ export default function Footer() {
 							fontWeight: 600,
 							transition: "color 0.15s ease",
 						}}
-						onMouseEnter={(e) => (e.currentTarget.style.color = "#4338ca")}
+						onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent-hover)")}
 						onMouseLeave={(e) => (e.currentTarget.style.color = "var(--accent)")}>
 						kaveeshwaray@gmail.com
 					</a>

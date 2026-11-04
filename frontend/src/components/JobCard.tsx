@@ -50,7 +50,7 @@ function CompanyAvatar({ name, imageUrl }: { name: string; imageUrl?: string | n
 				flexShrink: 0,
 				borderRadius: "var(--radius)",
 				border: "1px solid var(--border)",
-				background: `hsl(${hue}, 60%, 96%)`,
+				background: `color-mix(in srgb, var(--bg-surface) 86%, hsl(${hue}, 60%, 50%) 14%)`,
 				display: "flex",
 				alignItems: "center",
 				justifyContent: "center",
@@ -67,7 +67,7 @@ function CompanyAvatar({ name, imageUrl }: { name: string; imageUrl?: string | n
 					style={{
 						fontSize: 15,
 						fontWeight: 700,
-						color: `hsl(${hue}, 50%, 40%)`,
+						color: `color-mix(in srgb, var(--text-primary) 80%, hsl(${hue}, 60%, 50%) 20%)`,
 						letterSpacing: "-0.02em",
 					}}>
 					{initials || "J"}

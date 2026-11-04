@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const NAV_LINKS = [
 	{
@@ -47,7 +48,7 @@ export default function Nav() {
 				top: 0,
 				zIndex: 200,
 				height: "64px",
-				background: "rgba(255, 255, 255, 0.88)",
+				background: "var(--bg-glass)",
 				backdropFilter: "blur(16px)",
 				WebkitBackdropFilter: "blur(16px)",
 				borderBottom: "1px solid var(--border)",
@@ -148,6 +149,7 @@ export default function Nav() {
 							);
 						})}
 					</div>
+					<ThemeToggle />
 				</div>
 			</div>
 		</nav>
