@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getScrapeRuns, refilterScrapeRun } from "@/lib/api";
 import { useLiveRelativeTime } from "@/lib/datetime";
 import type { ClassifierResult, ScrapeRun, SiteResult } from "@/types/job";
+import Pagination from "@/components/Pagination";
 
 function RelativeDateCell({ iso }: { iso: string }) {
 	const value = useLiveRelativeTime(iso);
@@ -45,11 +46,27 @@ const STATUS_BADGE: Record<string, string> = {
 	RUNNING: "badge-indigo",
 };
 
+const PAGE_SIZE = 20;
+
+function localDateKey(iso: string): string | null {
+	const timestamp = parseUtc(iso);
+	if (timestamp === null) return null;
+	const date = new Date(timestamp);
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, "0");
+	const day = String(date.getDate()).padStart(2, "0");
+	return `${year}-${month}-${day}`;
+}
+
 export default function RunHistoryTable({ refreshKey = 0 }: Props) {
 	const [runs, setRuns] = useState<ScrapeRun[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [refilteringRunId, setRefilteringRunId] = useState<number | null>(null);
 	const [refilterError, setRefilterError] = useState<string | null>(null);
+	const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+	const [dateFrom, setDateFrom] = useState("");
+	const [dateTo, setDateTo] = useState("");
+	const [page, setPage] = useState(1);
 
 	useEffect(() => {
 		setLoading(true);
@@ -115,6 +132,20 @@ export default function RunHistoryTable({ refreshKey = 0 }: Props) {
 		}
 	}
 
+	const filteredRuns = runs
+		.filter((run) => {
+			const runDate = localDateKey(run.started_at);
+			if (!runDate) return !dateFrom && !dateTo;
+			return (!dateFrom || runDate >= dateFrom) && (!dateTo || runDate <= dateTo);
+		})
+		.sort((a, b) => {
+			const difference = (parseUtc(a.started_at) ?? 0) - (parseUtc(b.started_at) ?? 0);
+			return sortOrder === "newest" ? -difference : difference;
+		});
+	const totalPages = Math.max(1, Math.ceil(filteredRuns.length / PAGE_SIZE));
+	const currentPage = Math.min(page, totalPages);
+	const pageRuns = filteredRuns.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
 	if (loading) {
 		return <div style={{ padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>Loading run history...</div>;
 	}
@@ -134,145 +165,238 @@ export default function RunHistoryTable({ refreshKey = 0 }: Props) {
 					{refilterError}
 				</p>
 			)}
-			<table
+			<div
 				style={{
-					width: "100%",
-					borderCollapse: "collapse",
-					fontSize: 13,
+					display: "flex",
+					alignItems: "end",
+					justifyContent: "space-between",
+					flexWrap: "wrap",
+					gap: 12,
+					margin: "0 4px 14px",
 				}}>
-				<thead>
-					<tr>
-						{["#", "Started", "Duration", "Status", "Sites"].map((h) => (
-							<th
-								key={h}
-								style={{
-									padding: "8px 12px",
-									textAlign: "left",
-									fontWeight: 600,
-									fontSize: 11,
-									letterSpacing: "0.05em",
-									textTransform: "uppercase",
-									color: "var(--text-muted)",
-									borderBottom: "1px solid var(--border)",
-									whiteSpace: "nowrap",
-								}}>
-								{h}
-							</th>
-						))}
-					</tr>
-				</thead>
-				<tbody>
-					{runs.map((run, i) => (
-						<tr
-							key={run.id}
-							style={{
-								borderBottom: i < runs.length - 1 ? "1px solid var(--border)" : "none",
-								transition: "background 0.1s",
+				<div style={{ display: "flex", alignItems: "end", flexWrap: "wrap", gap: 10 }}>
+					<label style={{ display: "grid", gap: 4, color: "var(--text-secondary)", fontSize: 11, fontWeight: 600 }}>
+						Sort by
+						<select
+							className='select'
+							value={sortOrder}
+							onChange={(event) => {
+								setSortOrder(event.target.value as "newest" | "oldest");
+								setPage(1);
 							}}
-							onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-							onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
-							{/* ID */}
-							<td style={{ padding: "10px 12px", color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
-								#{run.id}
-							</td>
+							style={{ minWidth: 140, height: 36 }}>
+							<option value='newest'>Newest first</option>
+							<option value='oldest'>Oldest first</option>
+						</select>
+					</label>
+					<label style={{ display: "grid", gap: 4, color: "var(--text-secondary)", fontSize: 11, fontWeight: 600 }}>
+						From date
+						<input
+							className='input'
+							type='date'
+							value={dateFrom}
+							onChange={(event) => {
+								setDateFrom(event.target.value);
+								setPage(1);
+							}}
+							style={{ width: "auto", minWidth: 150, height: 36 }}
+						/>
+					</label>
+					<label style={{ display: "grid", gap: 4, color: "var(--text-secondary)", fontSize: 11, fontWeight: 600 }}>
+						To date
+						<input
+							className='input'
+							type='date'
+							value={dateTo}
+							onChange={(event) => {
+								setDateTo(event.target.value);
+								setPage(1);
+							}}
+							style={{ width: "auto", minWidth: 150, height: 36 }}
+						/>
+					</label>
+					{(dateFrom || dateTo) && (
+						<button
+							type='button'
+							className='btn btn-ghost btn-sm'
+							onClick={() => {
+								setDateFrom("");
+								setDateTo("");
+								setPage(1);
+							}}
+							style={{ height: 36 }}>
+							Clear dates
+						</button>
+					)}
+				</div>
+				<span style={{ color: "var(--text-muted)", fontSize: 12, paddingBottom: 8 }}>
+					{filteredRuns.length} {filteredRuns.length === 1 ? "run" : "runs"}
+				</span>
+			</div>
+			{pageRuns.length === 0 ?
+				<div
+					style={{
+						padding: "24px 12px",
+						textAlign: "center",
+						color: "var(--text-muted)",
+						fontSize: 13,
+						border: "1px dashed var(--border)",
+						borderRadius: "var(--radius)",
+					}}>
+					No runs match the selected date range.
+				</div>
+			:	<>
+					<table
+						style={{
+							width: "100%",
+							borderCollapse: "collapse",
+							fontSize: 13,
+						}}>
+						<thead>
+							<tr>
+								{["#", "Started", "Duration", "Status", "Sites"].map((h) => (
+									<th
+										key={h}
+										style={{
+											padding: "8px 12px",
+											textAlign: "left",
+											fontWeight: 600,
+											fontSize: 11,
+											letterSpacing: "0.05em",
+											textTransform: "uppercase",
+											color: "var(--text-muted)",
+											borderBottom: "1px solid var(--border)",
+											whiteSpace: "nowrap",
+										}}>
+										{h}
+									</th>
+								))}
+							</tr>
+						</thead>
+						<tbody>
+							{pageRuns.map((run, i) => (
+								<tr
+									key={run.id}
+									style={{
+										borderBottom: i < runs.length - 1 ? "1px solid var(--border)" : "none",
+										transition: "background 0.1s",
+									}}
+									onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+									onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
+									{/* ID */}
+									<td style={{ padding: "10px 12px", color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
+										#{run.id}
+									</td>
 
-							{/* Started */}
-							<td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
-								<RelativeDateCell iso={run.started_at} />
-							</td>
+									{/* Started */}
+									<td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+										<RelativeDateCell iso={run.started_at} />
+									</td>
 
-							{/* Duration */}
-							<td style={{ padding: "10px 12px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-								{formatDuration(run)}
-							</td>
+									{/* Duration */}
+									<td style={{ padding: "10px 12px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+										{formatDuration(run)}
+									</td>
 
-							{/* Status */}
-							<td style={{ padding: "10px 12px" }}>
-								<span className={`badge ${STATUS_BADGE[run.status] ?? "badge-neutral"}`}>
-									{run.status === "RUNNING" && (
-										<span
-											style={{
-												display: "inline-block",
-												width: 6,
-												height: 6,
-												borderRadius: "50%",
-												background: "currentColor",
-												animation: "pulse 1s ease-in-out infinite",
-											}}
-										/>
-									)}
-									{run.status}
-								</span>
-							</td>
+									{/* Status */}
+									<td style={{ padding: "10px 12px" }}>
+										<span className={`badge ${STATUS_BADGE[run.status] ?? "badge-neutral"}`}>
+											{run.status === "RUNNING" && (
+												<span
+													style={{
+														display: "inline-block",
+														width: 6,
+														height: 6,
+														borderRadius: "50%",
+														background: "currentColor",
+														animation: "pulse 1s ease-in-out infinite",
+													}}
+												/>
+											)}
+											{run.status}
+										</span>
+									</td>
 
-							{/* Site results */}
-							<td style={{ padding: "10px 12px" }}>
-								{Object.keys(run.site_results).length === 0 ?
-									<span style={{ color: "var(--text-muted)" }}>—</span>
-								:	<div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-										{Object.entries(run.site_results).map(([site, result]) => {
-											if (site === "__classifier__" && "kept" in result) {
-												const classifier = result as ClassifierResult;
-												const pendingCount = classifier.pending_job_ids?.length ?? 0;
-												return (
-													<div key={site} style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
-														<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-															<span style={{ color: "var(--purple)", minWidth: 130, fontWeight: 600 }}>
-																AI filtering
-															</span>
-															<span style={{ color: classifier.error ? "var(--red)" : "var(--text-muted)" }}>
-																{classifier.status === "running" ?
-																	"Filtering..."
-																:	(classifier.error ?? `${classifier.kept} kept, ${classifier.removed} removed`)}
-															</span>
-															{classifier.model_used && (
-																<span style={{ color: "var(--text-muted)" }}>Model: {classifier.model_used}</span>
-															)}
-															{pendingCount > 0 && run.status === "COMPLETED" && (
-																<button
-																	type='button'
-																	className='btn btn-ghost btn-sm'
-																	disabled={classifier.status === "running" || refilteringRunId === run.id}
-																	onClick={() => void handleRefilter(run.id)}>
-																	{classifier.status === "running" || refilteringRunId === run.id ?
-																		"Filtering..."
-																	:	`Retry ${pendingCount} job(s)`}
-																</button>
-															)}
-														</div>
-													</div>
-												);
-											}
-
-											if (!("found" in result)) return null;
-											const r = result as SiteResult;
-											return (
-												<div key={site} style={{ display: "flex", gap: 8, fontSize: 12, alignItems: "center" }}>
-													<span style={{ color: "var(--text-secondary)", minWidth: 130 }}>{site}</span>
-													{r.error ?
-														<span style={{ color: "var(--red)" }}>Error: {r.error}</span>
-													:	<>
-															<span style={{ color: "var(--text-muted)" }}>{r.found} found</span>
-															<span
-																style={{
-																	color: r.new > 0 ? "var(--green)" : "var(--text-muted)",
-																	fontWeight: r.new > 0 ? 700 : 400,
-																}}>
-																+{r.new} new
-															</span>
-															<span style={{ color: "var(--text-muted)" }}>{r.duplicates} dup</span>
-														</>
+									{/* Site results */}
+									<td style={{ padding: "10px 12px" }}>
+										{Object.keys(run.site_results).length === 0 ?
+											<span style={{ color: "var(--text-muted)" }}>—</span>
+										:	<div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+												{Object.entries(run.site_results).map(([site, result]) => {
+													if (site === "__classifier__" && "kept" in result) {
+														const classifier = result as ClassifierResult;
+														const pendingCount = classifier.pending_job_ids?.length ?? 0;
+														return (
+															<div
+																key={site}
+																style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
+																<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+																	<span style={{ color: "var(--purple)", minWidth: 130, fontWeight: 600 }}>
+																		AI filtering
+																	</span>
+																	<span style={{ color: classifier.error ? "var(--red)" : "var(--text-muted)" }}>
+																		{classifier.status === "running" ?
+																			"Filtering..."
+																		:	(classifier.error ?? `${classifier.kept} kept, ${classifier.removed} removed`)}
+																	</span>
+																	{classifier.model_used && (
+																		<span style={{ color: "var(--text-muted)" }}>Model: {classifier.model_used}</span>
+																	)}
+																	{pendingCount > 0 && run.status === "COMPLETED" && (
+																		<button
+																			type='button'
+																			className='btn btn-ghost btn-sm'
+																			disabled={classifier.status === "running" || refilteringRunId === run.id}
+																			onClick={() => void handleRefilter(run.id)}>
+																			{classifier.status === "running" || refilteringRunId === run.id ?
+																				"Filtering..."
+																			:	`Retry ${pendingCount} job(s)`}
+																		</button>
+																	)}
+																</div>
+															</div>
+														);
 													}
-												</div>
-											);
-										})}
-									</div>
-								}
-							</td>
-						</tr>
-					))}
-				</tbody>
-			</table>
+
+													if (!("found" in result)) return null;
+													const r = result as SiteResult;
+													return (
+														<div key={site} style={{ display: "flex", gap: 8, fontSize: 12, alignItems: "center" }}>
+															<span style={{ color: "var(--text-secondary)", minWidth: 130 }}>{site}</span>
+															{r.error ?
+																<span style={{ color: "var(--red)" }}>Error: {r.error}</span>
+															:	<>
+																	<span style={{ color: "var(--text-muted)" }}>{r.found} found</span>
+																	<span
+																		style={{
+																			color: r.new > 0 ? "var(--green)" : "var(--text-muted)",
+																			fontWeight: r.new > 0 ? 700 : 400,
+																		}}>
+																		+{r.new} new
+																	</span>
+																	<span style={{ color: "var(--text-muted)" }}>{r.duplicates} dup</span>
+																</>
+															}
+														</div>
+													);
+												})}
+											</div>
+										}
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+					<Pagination
+						page={currentPage}
+						pageSize={PAGE_SIZE}
+						total={filteredRuns.length}
+						onPageChange={setPage}
+						idPrefix='history-pagination'
+						showSummary
+					/>
+				</>
+			}
 		</div>
 	);
 }
