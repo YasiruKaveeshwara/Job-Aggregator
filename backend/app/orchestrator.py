@@ -226,6 +226,20 @@ def _execute_run(
             run_id,
             len(all_new_job_ids),
         )
+        _update_classifier_result(
+            run_id,
+            {
+                "status": "running",
+                "success": False,
+                "kept": 0,
+                "removed": 0,
+                "skipped": len(all_new_job_ids),
+                "error": None,
+                "pending_job_ids": all_new_job_ids,
+                "attempted_models": [],
+                "model_used": None,
+            },
+        )
         elapsed, est_remaining = _calc_progress_timers(
             run_start_time, completed, len(site_names), is_classifying=True
         )
@@ -248,6 +262,20 @@ def _execute_run(
             _update_classifier_result(run_id, classifier_stats)
         except Exception:
             logger.exception("[orchestrator] Classifier failed — jobs kept as NEW")
+            _update_classifier_result(
+                run_id,
+                {
+                    "status": "failed",
+                    "success": False,
+                    "kept": len(all_new_job_ids),
+                    "removed": 0,
+                    "skipped": len(all_new_job_ids),
+                    "error": "AI filtering unsuccessful due to an unexpected classifier error.",
+                    "pending_job_ids": all_new_job_ids,
+                    "attempted_models": [],
+                    "model_used": None,
+                },
+            )
 
     elapsed, _ = _calc_progress_timers(run_start_time, completed, len(site_names))
     _update_progress(
@@ -493,10 +521,57 @@ def _update_classifier_result(run_id: int, stats: dict) -> None:
         if run is None:
             return
         site_results = json.loads(run.site_results or "{}")
-        site_results["__classifier__"] = stats
+        current = site_results.get("__classifier__", {})
+        current.update(stats)
+        site_results["__classifier__"] = current
         run.site_results = json.dumps(site_results)
         session.add(run)
         session.commit()
+
+
+def refilter_scrape_run(run_id: int, job_ids: list[int]) -> None:
+    """Retry AI filtering for jobs from an already-fetched scrape run."""
+    with Session(engine) as session:
+        run = session.get(ScrapeRun, run_id)
+        if run is None:
+            logger.error(
+                "[orchestrator] ScrapeRun %d not found for AI refilter", run_id
+            )
+            return
+        try:
+            site_results = json.loads(run.site_results or "{}")
+        except json.JSONDecodeError:
+            site_results = {}
+        previous = site_results.get("__classifier__", {})
+        previous_pending = previous.get("pending_job_ids", [])
+        previous_kept = max(0, previous.get("kept", 0) - len(previous_pending))
+        previous_removed = previous.get("removed", 0)
+        previous_models = previous.get("attempted_models", [])
+        previous_model_used = previous.get("model_used")
+
+    try:
+        stats = classify_new_jobs(job_ids)
+    except Exception:
+        logger.exception("[orchestrator] AI refilter failed for run %d", run_id)
+        stats = {
+            "status": "failed",
+            "success": False,
+            "kept": len(job_ids),
+            "removed": 0,
+            "skipped": len(job_ids),
+            "error": "AI filtering unsuccessful due to an unexpected classifier error.",
+            "pending_job_ids": job_ids,
+            "attempted_models": [],
+            "model_used": None,
+        }
+
+    stats["kept"] += previous_kept
+    stats["removed"] += previous_removed
+    stats["attempted_models"] = list(
+        dict.fromkeys(previous_models + stats["attempted_models"])
+    )
+    stats["model_used"] = stats["model_used"] or previous_model_used
+    _update_classifier_result(run_id, stats)
 
 
 def _update_progress(run_id: int, progress: dict) -> None:

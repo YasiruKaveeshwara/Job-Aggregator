@@ -2,109 +2,108 @@
 // Keep in sync with backend/app/routers/jobs.py (JobOut, JobSourceOut)
 // and backend/app/routers/scrape.py (ScrapeRunOut).
 
-export type ApplicationState =
-  | "NEW"
-  | "APPLIED"
-  | "REMOVED";
+export type ApplicationState = "NEW" | "APPLIED" | "REMOVED";
 
-export const APPLICATION_STATES: ApplicationState[] = [
-  "NEW",
-  "APPLIED",
-  "REMOVED",
-];
+export const APPLICATION_STATES: ApplicationState[] = ["NEW", "APPLIED", "REMOVED"];
 
 export interface JobsPage {
-  total: number;
-  page: number;
-  page_size: number;
-  total_pages: number;
-  jobs: Job[];
+	total: number;
+	page: number;
+	page_size: number;
+	total_pages: number;
+	jobs: Job[];
 }
 
 export interface JobSource {
-  id: number;
-  platform: string;
-  url: string;
-  scraped_date: string; // ISO 8601
+	id: number;
+	platform: string;
+	url: string;
+	scraped_date: string; // ISO 8601
 }
 
 export interface Job {
-  id: number;
-  job_hash: string;
-  job_title: string;
-  company_name: string;
-  location_raw: string | null;
-  location_normalized: string | null;
-  role_match: string;
-  salary_disclosed: boolean;
-  salary_min: number | null;
-  salary_max: number | null;
-  description_clean: string | null;
-  image_url: string | null;
-  posted_date: string | null; // ISO 8601
-  application_state: ApplicationState;
-  state_updated_date: string; // ISO 8601
-  created_at: string; // ISO 8601
-  sources: JobSource[];
+	id: number;
+	job_hash: string;
+	job_title: string;
+	company_name: string;
+	location_raw: string | null;
+	location_normalized: string | null;
+	role_match: string;
+	salary_disclosed: boolean;
+	salary_min: number | null;
+	salary_max: number | null;
+	description_clean: string | null;
+	image_url: string | null;
+	posted_date: string | null; // ISO 8601
+	application_state: ApplicationState;
+	state_updated_date: string; // ISO 8601
+	created_at: string; // ISO 8601
+	sources: JobSource[];
 }
 
 export interface Source {
-  id: number;
-  name: string;
-  enabled: boolean;
-  last_scraped_at: string | null; // ISO 8601
+	id: number;
+	name: string;
+	enabled: boolean;
+	last_scraped_at: string | null; // ISO 8601
 }
 
 export interface KeywordConfig {
-  include: string[];
-  intern_modifiers: string[];
-  exclude: string[];
+	include: string[];
+	intern_modifiers: string[];
+	exclude: string[];
 }
 
 export interface SiteResult {
-  found: number;
-  new: number;
-  duplicates: number;
-  error: string | null;
-  duration_seconds?: number;
+	found: number;
+	new: number;
+	duplicates: number;
+	error: string | null;
+	duration_seconds?: number;
 }
 
 export interface ScrapeProgress {
-  total_sites: number;
-  completed_sites: number;
-  current_site: string | null;
-  requested_sites: string[];
-  classifying: boolean;
-  classifying_count?: number;
-  elapsed_seconds?: number | null;
-  estimated_remaining_seconds?: number | null;
+	total_sites: number;
+	completed_sites: number;
+	current_site: string | null;
+	requested_sites: string[];
+	classifying: boolean;
+	classifying_count?: number;
+	elapsed_seconds?: number | null;
+	estimated_remaining_seconds?: number | null;
 }
 
 export interface ClassifierResult {
-  kept: number;
-  removed: number;
-  skipped: number;
+	kept: number;
+	removed: number;
+	skipped: number;
+	status?: "running" | "completed" | "failed";
+	success?: boolean;
+	error?: string | null;
+	pending_job_ids?: number[];
+	attempted_models?: string[];
+	model_used?: string | null;
 }
 
 export interface ScrapeRun {
-  id: number;
-  started_at: string; // ISO 8601
-  finished_at: string | null; // ISO 8601
-  duration_seconds: number | null;
-  status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-  triggered_by: string;
-  site_results: Record<string, SiteResult>;
-  progress: ScrapeProgress;
+	id: number;
+	started_at: string; // ISO 8601
+	finished_at: string | null; // ISO 8601
+	duration_seconds: number | null;
+	status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+	triggered_by: string;
+	site_results: Record<string, SiteResult | ClassifierResult>;
+	progress: ScrapeProgress;
 }
 
 export interface SearchKeyword {
-  id: number;
-  keyword: string;
-  enabled: boolean;
+	id: number;
+	keyword: string;
+	enabled: boolean;
 }
 
 export interface SearchLocation {
-  id: number;
-  location: string;
-  enabled: boolean;
+	id: number;
+	location: string;
+	enabled: boolean;
 }

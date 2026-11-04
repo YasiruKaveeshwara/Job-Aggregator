@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { startScrape, getScrapeStatus, getScrapeRuns, toggleSource, cancelScrape } from "@/lib/api";
+import { startScrape, getScrapeStatus, getScrapeRuns, refilterScrapeRun, toggleSource, cancelScrape } from "@/lib/api";
 import { useLiveRelativeTime } from "@/lib/datetime";
-import type { Source, ScrapeRun, SiteResult } from "@/types/job";
+import type { Source, ScrapeRun, SiteResult, ClassifierResult } from "@/types/job";
 
 interface Props {
 	sources: Source[];
@@ -41,6 +41,11 @@ function parseUtcDate(iso: string | null | undefined): number | null {
 	return isNaN(ms) ? null : ms;
 }
 
+function getClassifierResult(run: ScrapeRun | null): ClassifierResult | undefined {
+	const result = run?.site_results["__classifier__"];
+	return result && "kept" in result ? result : undefined;
+}
+
 export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFinished }: Props) {
 	const [runState, setRunState] = useState<RunState>("idle");
 	const [currentRun, setCurrentRun] = useState<ScrapeRun | null>(null);
@@ -49,6 +54,7 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 	const [cancelling, setCancelling] = useState(false);
 	const [now, setNow] = useState<number>(Date.now());
 	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const notifiedModelUpdate = useRef<string | null>(null);
 
 	// Live tick timer every 1s when scraping
 	useEffect(() => {
@@ -74,13 +80,32 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 					const run = await getScrapeStatus(runId);
 					setCurrentRun(run);
 					if (run.site_results) {
-						setMergedResults((prev) => ({ ...prev, ...run.site_results }));
+						const sourceResults: Record<string, SiteResult> = {};
+						for (const [site, result] of Object.entries(run.site_results)) {
+							if ("found" in result) sourceResults[site] = result;
+						}
+						setMergedResults((prev) => ({ ...prev, ...sourceResults }));
+					}
+					const classifierResult = getClassifierResult(run);
+					const classifierRunning = classifierResult?.status === "running";
+					if (classifierResult?.model_used) {
+						const modelUpdateKey = `${run.id}:${classifierResult.model_used}`;
+						if (notifiedModelUpdate.current !== modelUpdateKey) {
+							notifiedModelUpdate.current = modelUpdateKey;
+							window.dispatchEvent(
+								new CustomEvent("job-aggregation:model-selected", {
+									detail: { model: classifierResult.model_used },
+								}),
+							);
+						}
 					}
 					if (run.status === "COMPLETED" || run.status === "CANCELLED") {
 						setRunState("done");
-						stopPolling();
 						setCancelling(false);
-						onRunFinished?.();
+						if (!classifierRunning) {
+							stopPolling();
+							onRunFinished?.();
+						}
 					} else if (run.status === "FAILED") {
 						setRunState("failed");
 						stopPolling();
@@ -97,6 +122,15 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 	);
 
 	useEffect(() => {
+		const handleRefilterStarted = (event: Event) => {
+			const runId = (event as CustomEvent<{ runId: number }>).detail?.runId;
+			if (runId === currentRun?.id) startPolling(runId);
+		};
+		window.addEventListener("job-aggregation:refilter-started", handleRefilterStarted);
+		return () => window.removeEventListener("job-aggregation:refilter-started", handleRefilterStarted);
+	}, [currentRun?.id, startPolling]);
+
+	useEffect(() => {
 		let cancelled = false;
 
 		getScrapeRuns()
@@ -105,15 +139,17 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 
 				const merged: Record<string, SiteResult> = {};
 				for (let i = runs.length - 1; i >= 0; i--) {
-					Object.assign(merged, runs[i].site_results);
+					for (const [site, result] of Object.entries(runs[i].site_results)) {
+						if ("found" in result) merged[site] = result;
+					}
 				}
 				setMergedResults(merged);
 
 				const latest = runs[0] ?? null;
 				setCurrentRun(latest);
 
-				if (latest?.status === "RUNNING") {
-					setRunState("running");
+				if (latest?.status === "RUNNING" || getClassifierResult(latest)?.status === "running") {
+					setRunState(latest.status === "RUNNING" ? "running" : "done");
 					startPolling(latest.id);
 				} else if (latest?.status === "COMPLETED" || latest?.status === "CANCELLED") {
 					setRunState("done");
@@ -156,15 +192,26 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 		}
 	};
 
+	const handleRefilter = async () => {
+		if (!currentRun) return;
+		setError(null);
+		try {
+			const updatedRun = await refilterScrapeRun(currentRun.id);
+			setCurrentRun(updatedRun);
+			setRunState("done");
+			startPolling(updatedRun.id);
+		} catch (e) {
+			setError(e instanceof Error ? e.message : String(e));
+		}
+	};
+
 	const totalNew =
 		currentRun ?
 			Object.entries(currentRun.site_results)
 				.filter(([key]) => key !== "__classifier__")
 				.reduce((s, [, r]) => s + ("new" in r ? r.new : 0), 0)
 		:	0;
-	const classifierResult = currentRun?.site_results["__classifier__"] as
-		| { kept: number; removed: number; skipped: number }
-		| undefined;
+	const classifierResult = getClassifierResult(currentRun);
 	const lastFetchAt = currentRun?.finished_at ?? currentRun?.started_at ?? null;
 	const lastFetchLabel = useLiveRelativeTime(lastFetchAt);
 
@@ -655,8 +702,17 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 										<span style={{ fontSize: "13px", fontWeight: "700", color: "var(--purple)" }}>
 											Gemini AI Relevance Classifier
 										</span>
-										<p style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "1px" }}>
-											Filtered non-relevant software jobs automatically.
+										<p
+											style={{
+												fontSize: "11px",
+												color: classifierResult.error ? "var(--red)" : "var(--text-secondary)",
+												marginTop: "1px",
+											}}>
+											{classifierResult.status === "running" ?
+												"AI filtering is in progress..."
+											:	classifierResult.error ||
+												`Filtered non-relevant software jobs automatically. Model used: ${classifierResult.model_used ?? "not required"}.`
+											}
 										</p>
 									</div>
 								</div>
@@ -685,6 +741,15 @@ export default function ScrapeControlPanel({ sources, onSourcesChange, onRunFini
 										✕ {classifierResult.removed} Filtered
 									</span>
 								</div>
+								{(classifierResult.pending_job_ids?.length ?? 0) > 0 && (
+									<button
+										type='button'
+										className='btn btn-primary btn-sm'
+										onClick={() => void handleRefilter()}
+										disabled={classifierResult.status === "running"}>
+										{classifierResult.status === "running" ? "Filtering..." : "Retry AI filtering"}
+									</button>
+								)}
 							</div>
 						)}
 					</div>

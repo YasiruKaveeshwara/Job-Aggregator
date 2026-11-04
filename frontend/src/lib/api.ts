@@ -119,6 +119,17 @@ export function getScrapeRuns(): Promise<ScrapeRun[]> {
 	return apiFetch<ScrapeRun[]>("/api/scrape/runs");
 }
 
+export function refilterScrapeRun(runId: number): Promise<ScrapeRun> {
+	return apiFetch<ScrapeRun>(`/api/scrape/runs/${runId}/refilter`, {
+		method: "POST",
+	}).then((run) => {
+		if (typeof window !== "undefined") {
+			window.dispatchEvent(new CustomEvent("job-aggregation:refilter-started", { detail: { runId } }));
+		}
+		return run;
+	});
+}
+
 export function cancelScrape(runId: number): Promise<{ detail: string }> {
 	return apiFetch<{ detail: string }>(`/api/scrape/cancel/${runId}`, {
 		method: "POST",

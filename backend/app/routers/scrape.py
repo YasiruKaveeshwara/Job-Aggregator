@@ -17,7 +17,7 @@ from sqlmodel import Session, col, select
 
 from app.db import get_session, engine
 from app.models import ScrapeRun
-from app.orchestrator import run_scrape, request_cancel
+from app.orchestrator import refilter_scrape_run, run_scrape, request_cancel
 
 router = APIRouter(prefix="/api/scrape", tags=["scrape"])
 
@@ -106,6 +106,58 @@ def get_scrape_status(
     if not run:
         raise HTTPException(status_code=404, detail=f"ScrapeRun {run_id} not found")
 
+    return _run_to_out(run)
+
+
+@router.post("/runs/{run_id}/refilter", response_model=ScrapeRunOut)
+def refilter_completed_run(
+    run_id: int,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    """Retry AI filtering for jobs saved by an earlier completed scrape."""
+    run = session.get(ScrapeRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"ScrapeRun {run_id} not found")
+    if run.status != "COMPLETED":
+        raise HTTPException(
+            status_code=409,
+            detail="AI filtering can only be retried after scraping has completed.",
+        )
+
+    try:
+        site_results = json.loads(run.site_results or "{}")
+    except json.JSONDecodeError:
+        site_results = {}
+    classifier_result = site_results.get("__classifier__", {})
+    if classifier_result.get("status") == "running":
+        raise HTTPException(status_code=409, detail="AI filtering is already running.")
+
+    pending_job_ids = classifier_result.get("pending_job_ids", [])
+    if (
+        not isinstance(pending_job_ids, list)
+        or not pending_job_ids
+        or any(type(job_id) is not int for job_id in pending_job_ids)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="This scrape run has no saved jobs waiting for AI filtering.",
+        )
+
+    classifier_result.update(
+        {
+            "status": "running",
+            "success": False,
+            "error": None,
+        }
+    )
+    site_results["__classifier__"] = classifier_result
+    run.site_results = json.dumps(site_results)
+    session.add(run)
+    session.commit()
+    session.refresh(run)
+
+    background_tasks.add_task(refilter_scrape_run, run_id, pending_job_ids)
     return _run_to_out(run)
 
 

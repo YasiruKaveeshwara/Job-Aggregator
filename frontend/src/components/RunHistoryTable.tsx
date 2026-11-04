@@ -1,186 +1,278 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getScrapeRuns } from "@/lib/api";
+import { getScrapeRuns, refilterScrapeRun } from "@/lib/api";
 import { useLiveRelativeTime } from "@/lib/datetime";
-import type { ScrapeRun } from "@/types/job";
+import type { ClassifierResult, ScrapeRun, SiteResult } from "@/types/job";
 
 function RelativeDateCell({ iso }: { iso: string }) {
-  const value = useLiveRelativeTime(iso);
-  return <>{value}</>;
+	const value = useLiveRelativeTime(iso);
+	return <>{value}</>;
 }
 
 function parseUtc(iso: string | null | undefined): number | null {
-  if (!iso) return null;
-  const formatted = (iso.endsWith("Z") || iso.includes("+") || iso.includes("-", 10)) ? iso : `${iso}Z`;
-  const ms = new Date(formatted).getTime();
-  return isNaN(ms) ? null : ms;
+	if (!iso) return null;
+	const formatted = iso.endsWith("Z") || iso.includes("+") || iso.includes("-", 10) ? iso : `${iso}Z`;
+	const ms = new Date(formatted).getTime();
+	return isNaN(ms) ? null : ms;
 }
 
 function formatDuration(run: ScrapeRun): string {
-  if (run.duration_seconds != null && run.duration_seconds > 0) {
-    const s = Math.round(run.duration_seconds);
-    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
-  }
-  if (!run.finished_at) return "—";
-  const startMs = parseUtc(run.started_at);
-  const endMs = parseUtc(run.finished_at);
-  if (!startMs || !endMs) return "—";
-  const s = Math.round((endMs - startMs) / 1000);
-  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+	if (run.duration_seconds != null && run.duration_seconds > 0) {
+		const s = Math.round(run.duration_seconds);
+		return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+	}
+	if (!run.finished_at) return "—";
+	const startMs = parseUtc(run.started_at);
+	const endMs = parseUtc(run.finished_at);
+	if (!startMs || !endMs) return "—";
+	const s = Math.round((endMs - startMs) / 1000);
+	return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
+function getClassifierResult(run: ScrapeRun): ClassifierResult | undefined {
+	const result = run.site_results["__classifier__"];
+	return result && "kept" in result ? result : undefined;
 }
 
 interface Props {
-  refreshKey?: number;
+	refreshKey?: number;
 }
 
 const STATUS_BADGE: Record<string, string> = {
-  COMPLETED: "badge-green",
-  FAILED:    "badge-red",
-  CANCELLED: "badge-amber",
-  RUNNING:   "badge-indigo",
+	COMPLETED: "badge-green",
+	FAILED: "badge-red",
+	CANCELLED: "badge-amber",
+	RUNNING: "badge-indigo",
 };
 
 export default function RunHistoryTable({ refreshKey = 0 }: Props) {
-  const [runs, setRuns] = useState<ScrapeRun[]>([]);
-  const [loading, setLoading] = useState(true);
+	const [runs, setRuns] = useState<ScrapeRun[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [refilteringRunId, setRefilteringRunId] = useState<number | null>(null);
+	const [refilterError, setRefilterError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLoading(true);
-    getScrapeRuns()
-      .then(setRuns)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [refreshKey]);
+	useEffect(() => {
+		setLoading(true);
+		getScrapeRuns()
+			.then(setRuns)
+			.catch(console.error)
+			.finally(() => setLoading(false));
+	}, [refreshKey]);
 
-  if (loading) {
-    return (
-      <div style={{ padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>
-        Loading run history...
-      </div>
-    );
-  }
+	useEffect(() => {
+		const handleRefilterStarted = (event: Event) => {
+			const runId = (event as CustomEvent<{ runId: number }>).detail?.runId;
+			if (typeof runId !== "number") return;
+			setRuns((current) =>
+				current.map((run) => {
+					if (run.id !== runId) return run;
+					const classifier = getClassifierResult(run);
+					if (!classifier) return run;
+					return {
+						...run,
+						site_results: {
+							...run.site_results,
+							__classifier__: { ...classifier, status: "running", error: null },
+						},
+					};
+				}),
+			);
+		};
+		window.addEventListener("job-aggregation:refilter-started", handleRefilterStarted);
+		return () => window.removeEventListener("job-aggregation:refilter-started", handleRefilterStarted);
+	}, []);
 
-  if (runs.length === 0) {
-    return (
-      <div style={{ padding: "16px 0", color: "var(--text-muted)", fontSize: 13 }}>
-        No runs yet. Click <strong>Fetch All Sources</strong> to start.
-      </div>
-    );
-  }
+	const hasActiveRefilter = runs.some((run) => getClassifierResult(run)?.status === "running");
 
-  return (
-    <div style={{ overflowX: "auto", margin: "0 -4px" }}>
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          fontSize: 13,
-        }}
-      >
-        <thead>
-          <tr>
-            {["#", "Started", "Duration", "Status", "Sites"].map((h) => (
-              <th
-                key={h}
-                style={{
-                  padding: "8px 12px",
-                  textAlign: "left",
-                  fontWeight: 600,
-                  fontSize: 11,
-                  letterSpacing: "0.05em",
-                  textTransform: "uppercase",
-                  color: "var(--text-muted)",
-                  borderBottom: "1px solid var(--border)",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {runs.map((run, i) => (
-            <tr
-              key={run.id}
-              style={{
-                borderBottom: i < runs.length - 1 ? "1px solid var(--border)" : "none",
-                transition: "background 0.1s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-            >
-              {/* ID */}
-              <td style={{ padding: "10px 12px", color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
-                #{run.id}
-              </td>
+	useEffect(() => {
+		if (!hasActiveRefilter) return;
+		let active = true;
+		const intervalId = window.setInterval(() => {
+			void getScrapeRuns()
+				.then((updatedRuns) => {
+					if (active) setRuns(updatedRuns);
+				})
+				.catch((error: unknown) => {
+					if (active) console.error("Could not refresh AI refilter status", error);
+				});
+		}, 1500);
+		return () => {
+			active = false;
+			window.clearInterval(intervalId);
+		};
+	}, [hasActiveRefilter]);
 
-              {/* Started */}
-              <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
-                <RelativeDateCell iso={run.started_at} />
-              </td>
+	async function handleRefilter(runId: number) {
+		setRefilteringRunId(runId);
+		setRefilterError(null);
+		try {
+			const updatedRun = await refilterScrapeRun(runId);
+			setRuns((current) => current.map((run) => (run.id === runId ? updatedRun : run)));
+		} catch (error) {
+			setRefilterError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setRefilteringRunId(null);
+		}
+	}
 
-              {/* Duration */}
-              <td style={{ padding: "10px 12px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                {formatDuration(run)}
-              </td>
+	if (loading) {
+		return <div style={{ padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>Loading run history...</div>;
+	}
 
-              {/* Status */}
-              <td style={{ padding: "10px 12px" }}>
-                <span className={`badge ${STATUS_BADGE[run.status] ?? "badge-neutral"}`}>
-                  {run.status === "RUNNING" && (
-                    <span
-                      style={{
-                        display: "inline-block",
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
-                        background: "currentColor",
-                        animation: "pulse 1s ease-in-out infinite",
-                      }}
-                    />
-                  )}
-                  {run.status}
-                </span>
-              </td>
+	if (runs.length === 0) {
+		return (
+			<div style={{ padding: "16px 0", color: "var(--text-muted)", fontSize: 13 }}>
+				No runs yet. Click <strong>Fetch All Sources</strong> to start.
+			</div>
+		);
+	}
 
-              {/* Site results */}
-              <td style={{ padding: "10px 12px" }}>
-                {Object.keys(run.site_results).length === 0 ? (
-                  <span style={{ color: "var(--text-muted)" }}>—</span>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                    {Object.entries(run.site_results).map(([site, r]) => (
-                      <div
-                        key={site}
-                        style={{ display: "flex", gap: 8, fontSize: 12, alignItems: "center" }}
-                      >
-                        <span style={{ color: "var(--text-secondary)", minWidth: 130 }}>{site}</span>
-                        {r.error ? (
-                          <span style={{ color: "var(--red)" }}>Error: {r.error}</span>
-                        ) : (
-                          <>
-                            <span style={{ color: "var(--text-muted)" }}>{r.found} found</span>
-                            <span
-                              style={{
-                                color: r.new > 0 ? "var(--green)" : "var(--text-muted)",
-                                fontWeight: r.new > 0 ? 700 : 400,
-                              }}
-                            >
-                              +{r.new} new
-                            </span>
-                            <span style={{ color: "var(--text-muted)" }}>{r.duplicates} dup</span>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+	return (
+		<div style={{ overflowX: "auto", margin: "0 -4px" }}>
+			{refilterError && (
+				<p role='alert' style={{ margin: "0 4px 12px", color: "var(--red)", fontSize: 12 }}>
+					{refilterError}
+				</p>
+			)}
+			<table
+				style={{
+					width: "100%",
+					borderCollapse: "collapse",
+					fontSize: 13,
+				}}>
+				<thead>
+					<tr>
+						{["#", "Started", "Duration", "Status", "Sites"].map((h) => (
+							<th
+								key={h}
+								style={{
+									padding: "8px 12px",
+									textAlign: "left",
+									fontWeight: 600,
+									fontSize: 11,
+									letterSpacing: "0.05em",
+									textTransform: "uppercase",
+									color: "var(--text-muted)",
+									borderBottom: "1px solid var(--border)",
+									whiteSpace: "nowrap",
+								}}>
+								{h}
+							</th>
+						))}
+					</tr>
+				</thead>
+				<tbody>
+					{runs.map((run, i) => (
+						<tr
+							key={run.id}
+							style={{
+								borderBottom: i < runs.length - 1 ? "1px solid var(--border)" : "none",
+								transition: "background 0.1s",
+							}}
+							onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+							onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
+							{/* ID */}
+							<td style={{ padding: "10px 12px", color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
+								#{run.id}
+							</td>
+
+							{/* Started */}
+							<td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+								<RelativeDateCell iso={run.started_at} />
+							</td>
+
+							{/* Duration */}
+							<td style={{ padding: "10px 12px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+								{formatDuration(run)}
+							</td>
+
+							{/* Status */}
+							<td style={{ padding: "10px 12px" }}>
+								<span className={`badge ${STATUS_BADGE[run.status] ?? "badge-neutral"}`}>
+									{run.status === "RUNNING" && (
+										<span
+											style={{
+												display: "inline-block",
+												width: 6,
+												height: 6,
+												borderRadius: "50%",
+												background: "currentColor",
+												animation: "pulse 1s ease-in-out infinite",
+											}}
+										/>
+									)}
+									{run.status}
+								</span>
+							</td>
+
+							{/* Site results */}
+							<td style={{ padding: "10px 12px" }}>
+								{Object.keys(run.site_results).length === 0 ?
+									<span style={{ color: "var(--text-muted)" }}>—</span>
+								:	<div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+										{Object.entries(run.site_results).map(([site, result]) => {
+											if (site === "__classifier__" && "kept" in result) {
+												const classifier = result as ClassifierResult;
+												const pendingCount = classifier.pending_job_ids?.length ?? 0;
+												return (
+													<div key={site} style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
+														<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+															<span style={{ color: "var(--purple)", minWidth: 130, fontWeight: 600 }}>
+																AI filtering
+															</span>
+															<span style={{ color: classifier.error ? "var(--red)" : "var(--text-muted)" }}>
+																{classifier.status === "running" ?
+																	"Filtering..."
+																:	(classifier.error ?? `${classifier.kept} kept, ${classifier.removed} removed`)}
+															</span>
+															{classifier.model_used && (
+																<span style={{ color: "var(--text-muted)" }}>Model: {classifier.model_used}</span>
+															)}
+															{pendingCount > 0 && run.status === "COMPLETED" && (
+																<button
+																	type='button'
+																	className='btn btn-ghost btn-sm'
+																	disabled={classifier.status === "running" || refilteringRunId === run.id}
+																	onClick={() => void handleRefilter(run.id)}>
+																	{classifier.status === "running" || refilteringRunId === run.id ?
+																		"Filtering..."
+																	:	`Retry ${pendingCount} job(s)`}
+																</button>
+															)}
+														</div>
+													</div>
+												);
+											}
+
+											if (!("found" in result)) return null;
+											const r = result as SiteResult;
+											return (
+												<div key={site} style={{ display: "flex", gap: 8, fontSize: 12, alignItems: "center" }}>
+													<span style={{ color: "var(--text-secondary)", minWidth: 130 }}>{site}</span>
+													{r.error ?
+														<span style={{ color: "var(--red)" }}>Error: {r.error}</span>
+													:	<>
+															<span style={{ color: "var(--text-muted)" }}>{r.found} found</span>
+															<span
+																style={{
+																	color: r.new > 0 ? "var(--green)" : "var(--text-muted)",
+																	fontWeight: r.new > 0 ? 700 : 400,
+																}}>
+																+{r.new} new
+															</span>
+															<span style={{ color: "var(--text-muted)" }}>{r.duplicates} dup</span>
+														</>
+													}
+												</div>
+											);
+										})}
+									</div>
+								}
+							</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
+	);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getGeminiModels, getSettingsStatus, updateSetting, type GeminiModel } from "@/lib/api";
 
 export default function SettingsPanel() {
@@ -24,20 +24,26 @@ export default function SettingsPanel() {
 		}
 	}
 
-	async function loadModels(apiKey?: string) {
+	const loadModels = useCallback(async (apiKey?: string, preferredModel = "") => {
 		setLoadingModels(true);
 		setError(null);
 		try {
 			const availableModels = await getGeminiModels(apiKey);
 			setModels(availableModels);
-			setSelectedModel((current) => current || availableModels[0]?.id || "");
+			const selectedIsAvailable = availableModels.some((model) => model.id === preferredModel);
+			const nextModel = selectedIsAvailable ? preferredModel : availableModels[0]?.id || "";
+			setSelectedModel(nextModel);
+			if (nextModel && nextModel !== preferredModel && !apiKey) {
+				await updateSetting("GEMINI_MODEL", nextModel);
+				setSuccessMessage("The previously selected model is unavailable. Switched to the best available model.");
+			}
 		} catch (e) {
 			setModels([]);
 			setError(e instanceof Error ? e.message : String(e));
 		} finally {
 			setLoadingModels(false);
 		}
-	}
+	}, []);
 
 	async function handleModelChange(model: string) {
 		setSelectedModel(model);
@@ -58,7 +64,10 @@ export default function SettingsPanel() {
 				if (active) {
 					setGeminiConfigured(status["GEMINI_API_KEY"] === true);
 					setSelectedModel(typeof status["GEMINI_MODEL"] === "string" ? status["GEMINI_MODEL"] : "");
-					if (status["GEMINI_API_KEY"] === true) void loadModels();
+					if (status["GEMINI_API_KEY"] === true) {
+						const model = typeof status["GEMINI_MODEL"] === "string" ? status["GEMINI_MODEL"] : "";
+						void loadModels(undefined, model);
+					}
 				}
 			})
 			.catch((e) => {
@@ -68,7 +77,21 @@ export default function SettingsPanel() {
 		return () => {
 			active = false;
 		};
-	}, []);
+	}, [loadModels]);
+
+	useEffect(() => {
+		const handleModelSelected = (event: Event) => {
+			const model = (event as CustomEvent<{ model: string }>).detail?.model;
+			if (typeof model === "string" && model) {
+				setSelectedModel(model);
+				if (model !== selectedModel) {
+					setSuccessMessage(`The AI classifier selected the working model "${model}".`);
+				}
+			}
+		};
+		window.addEventListener("job-aggregation:model-selected", handleModelSelected);
+		return () => window.removeEventListener("job-aggregation:model-selected", handleModelSelected);
+	}, [selectedModel]);
 
 	async function handleSave() {
 		if (!inputValue.trim()) return;
@@ -77,13 +100,18 @@ export default function SettingsPanel() {
 		setSuccessMessage(null);
 		try {
 			await updateSetting("GEMINI_API_KEY", inputValue.trim());
-			const availableModels = models.length > 0 ? models : await getGeminiModels(inputValue.trim());
-			const modelToSave = selectedModel || availableModels[0]?.id;
-			if (modelToSave) await updateSetting("GEMINI_MODEL", modelToSave);
+			const availableModels = await getGeminiModels(inputValue.trim());
+			setModels(availableModels);
+			const modelToSave = availableModels.find((model) => model.id === selectedModel)?.id ?? availableModels[0]?.id;
+			if (!modelToSave) {
+				throw new Error("No generateContent-capable Gemini models are available for this API key.");
+			}
+			await updateSetting("GEMINI_MODEL", modelToSave);
+			setSelectedModel(modelToSave);
 			setInputValue("");
 			setSuccessMessage("Gemini API Key saved and encrypted successfully.");
 			await refreshStatus();
-			await loadModels();
+			await loadModels(undefined, modelToSave);
 			setTimeout(() => setSuccessMessage(null), 4000);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : String(e));
@@ -165,7 +193,7 @@ export default function SettingsPanel() {
 						</select>
 						<button
 							type='button'
-							onClick={() => void loadModels(inputValue.trim() || undefined)}
+							onClick={() => void loadModels(inputValue.trim() || undefined, selectedModel)}
 							disabled={loadingModels || (!inputValue.trim() && !geminiConfigured)}
 							style={{
 								alignSelf: "flex-start",

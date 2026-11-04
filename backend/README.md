@@ -12,6 +12,7 @@ FastAPI-powered backend engine for the **Job Aggregator** application. It handle
 - **Split HTTP Timeouts**: Separate connect timeout (5s) for fast detection of unreachable hosts, and read timeout (15s) for slow-but-alive servers.
 - **Deduplication Engine**: Matches job titles and company names to eliminate duplicate listings across platforms.
 - **AI Relevance Classifier**: Uses Google Gemini 3.1 Flash Lite to automatically filter out non-software job postings based on target keywords.
+- **AI Model Fallback & Refiltering**: Tries other available Gemini models when the selected model fails, remembers the last working model, and retains unfiltered jobs for retry from scrape history.
 - **Editable AI Prompts**: System and user prompts are seeded into SQLite, editable at `/prompts`, and independently restorable to their original defaults.
 - **Dual Data Persistence**:
   - **Web Development Mode**: Database saved at `backend/jobs.db`.
@@ -79,20 +80,21 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 ## API Endpoints Overview
 
-| Method         | Endpoint                       | Description                                                      |
-| :------------- | :----------------------------- | :--------------------------------------------------------------- |
-| `GET`          | `/api/jobs`                    | Paginated job list with state, source, keyword & date filtering  |
-| `PATCH`        | `/api/jobs/{id}/state`         | Update job state (`SAVED`, `APPLIED`, `INTERVIEWING`, `REMOVED`) |
-| `POST`         | `/api/scrape/run`              | Trigger a manual scrape run across sources                       |
-| `DELETE`       | `/api/scrape/runs/{id}/cancel` | Cancel a running scrape                                          |
-| `GET`          | `/api/scrape/runs`             | Retrieve scrape audit log history                                |
-| `GET`          | `/api/sources`                 | List configured scrapers and toggle status                       |
-| `GET` / `POST` | `/api/settings`                | Retrieve or update Gemini API keys and settings                  |
-| `GET`          | `/api/prompts`                 | List prompts and their default text                              |
-| `PUT`          | `/api/prompts/{key}`           | Update one prompt                                                |
-| `POST`         | `/api/prompts/{key}/reset`     | Restore one prompt to its seeded default                         |
-| `GET` / `POST` | `/api/keywords`                | Manage role matching and negative exclude terms                  |
-| `GET` / `POST` | `/api/locations`               | Manage target geographic locations                               |
+| Method         | Endpoint                         | Description                                                      |
+| :------------- | :------------------------------- | :--------------------------------------------------------------- |
+| `GET`          | `/api/jobs`                      | Paginated job list with state, source, keyword & date filtering  |
+| `PATCH`        | `/api/jobs/{id}/state`           | Update job state (`SAVED`, `APPLIED`, `INTERVIEWING`, `REMOVED`) |
+| `POST`         | `/api/scrape/run`                | Trigger a manual scrape run across sources                       |
+| `DELETE`       | `/api/scrape/runs/{id}/cancel`   | Cancel a running scrape                                          |
+| `GET`          | `/api/scrape/runs`               | Retrieve scrape audit log history                                |
+| `POST`         | `/api/scrape/runs/{id}/refilter` | Retry AI filtering for saved jobs that remain unclassified       |
+| `GET`          | `/api/sources`                   | List configured scrapers and toggle status                       |
+| `GET` / `POST` | `/api/settings`                  | Retrieve or update Gemini API keys and settings                  |
+| `GET`          | `/api/prompts`                   | List prompts and their default text                              |
+| `PUT`          | `/api/prompts/{key}`             | Update one prompt                                                |
+| `POST`         | `/api/prompts/{key}/reset`       | Restore one prompt to its seeded default                         |
+| `GET` / `POST` | `/api/keywords`                  | Manage role matching and negative exclude terms                  |
+| `GET` / `POST` | `/api/locations`                 | Manage target geographic locations                               |
 
 ---
 
