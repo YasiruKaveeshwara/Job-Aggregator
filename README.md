@@ -156,7 +156,7 @@ npm install
 npm run dev
 ```
 
-_Dashboard served at `http://localhost:3000` (Admin Portal at `http://localhost:3000/admin`)._
+_Dashboard served at `http://localhost:3000` (Admin Portal at `http://localhost:3000/admin`, AI Prompts at `http://localhost:3000/prompts`)._
 
 ---
 

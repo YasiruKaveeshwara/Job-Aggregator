@@ -38,9 +38,7 @@ class Job(SQLModel, table=True):
     state_updated_date: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class JobSource(SQLModel, table=True):
@@ -54,11 +52,9 @@ class JobSource(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     job_id: int = Field(foreign_key="job.id")
 
-    platform: str   # e.g. "itpro.lk", "anyjobok.com"
-    url: str        # direct link to the posting on that platform
-    scraped_date: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    platform: str  # e.g. "itpro.lk", "anyjobok.com"
+    url: str  # direct link to the posting on that platform
+    scraped_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ScrapeRun(SQLModel, table=True):
@@ -81,9 +77,7 @@ class ScrapeRun(SQLModel, table=True):
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    started_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     finished_at: Optional[datetime] = None
     duration_seconds: Optional[float] = None
 
@@ -107,7 +101,7 @@ class Source(SQLModel, table=True):
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(unique=True)   # e.g. "itpro.lk"
+    name: str = Field(unique=True)  # e.g. "itpro.lk"
     enabled: bool = True
     last_scraped_at: Optional[datetime] = None
 
@@ -150,3 +144,12 @@ class Setting(SQLModel, table=True):
     key: str = Field(primary_key=True)
     value: str
 
+
+class AIPrompt(SQLModel, table=True):
+    """A runtime-editable AI prompt with its original default for reset."""
+
+    key: str = Field(primary_key=True)
+    name: str
+    description: str
+    default_prompt: str
+    prompt: str

@@ -29,6 +29,7 @@ a = Analysis(
         "curl_cffi.requests",
         "playwright",
         "playwright.sync_api",
+        "winotify",
         "uvicorn.logging",
         "uvicorn.loops",
         "uvicorn.loops.auto",

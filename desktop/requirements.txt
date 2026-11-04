@@ -1,4 +1,5 @@
 -r ../backend/requirements.txt
 pywebview
+winotify
 pyinstaller
 pyinstaller-hooks-contrib

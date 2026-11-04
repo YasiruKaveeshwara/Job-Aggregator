@@ -40,25 +40,43 @@ _DEFAULT_SEARCH_LOCATIONS: list[str] = [
     # Country
     "sri lanka",
     # Western Province
-    "colombo", "gampaha", "kalutara",
+    "colombo",
+    "gampaha",
+    "kalutara",
     # Central Province
-    "kandy", "matale", "nuwara eliya",
+    "kandy",
+    "matale",
+    "nuwara eliya",
     # Southern Province
-    "galle", "matara", "hambantota",
+    "galle",
+    "matara",
+    "hambantota",
     # Northern Province
-    "jaffna", "kilinochchi", "mannar", "mullaitivu", "vavuniya",
+    "jaffna",
+    "kilinochchi",
+    "mannar",
+    "mullaitivu",
+    "vavuniya",
     # Eastern Province
-    "batticaloa", "ampara", "trincomalee",
+    "batticaloa",
+    "ampara",
+    "trincomalee",
     # North Western Province
-    "kurunegala", "puttalam",
+    "kurunegala",
+    "puttalam",
     # North Central Province
-    "anuradhapura", "polonnaruwa",
+    "anuradhapura",
+    "polonnaruwa",
     # Uva Province
-    "badulla", "monaragala",
+    "badulla",
+    "monaragala",
     # Sabaragamuwa Province
-    "ratnapura", "kegalle",
+    "ratnapura",
+    "kegalle",
     # Work type
-    "remote", "onsite", "hybrid",
+    "remote",
+    "onsite",
+    "hybrid",
 ]
 
 
@@ -68,6 +86,7 @@ def create_db_and_tables() -> None:
     _run_migrations()
     _seed_search_keywords()
     _seed_search_locations()
+    _seed_ai_prompts()
 
 
 def _run_migrations() -> None:
@@ -139,7 +158,31 @@ def _seed_search_locations() -> None:
         for loc in _DEFAULT_SEARCH_LOCATIONS:
             session.add(SearchLocation(location=loc, enabled=True))
         session.commit()
-        _logger.info("Seeded %d default search locations", len(_DEFAULT_SEARCH_LOCATIONS))
+        _logger.info(
+            "Seeded %d default search locations", len(_DEFAULT_SEARCH_LOCATIONS)
+        )
+
+
+def _seed_ai_prompts() -> None:
+    """Insert default AI prompts without overwriting any saved edits."""
+    from app.ai_prompt_defaults import DEFAULT_AI_PROMPTS
+    from app.models import AIPrompt
+
+    with Session(engine) as session:
+        added = 0
+        for prompt_data in DEFAULT_AI_PROMPTS:
+            if session.get(AIPrompt, prompt_data["key"]) is None:
+                session.add(
+                    AIPrompt(
+                        **prompt_data,
+                        prompt=prompt_data["default_prompt"],
+                    )
+                )
+                added += 1
+
+        if added:
+            session.commit()
+            _logger.info("Seeded %d default AI prompts", added)
 
 
 def get_session():
@@ -154,4 +197,3 @@ def get_session():
     """
     with Session(engine) as session:
         yield session
-

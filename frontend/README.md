@@ -20,6 +20,7 @@ Modern Next.js 16 frontend for **Job Aggregator**. Features a sleek, responsive 
 
 - `/` - **Dashboard Page**: Search filters, role dropdowns, live stats HUD, job cards, and pagination.
 - `/admin` - **Admin Portal**: Executive control center with sections for _Sources & Scrape Control_, _Gemini AI Credentials_, _Target Keywords_, _Locations_, and _Scrape Run History_.
+- **Completion Notifications**: The Admin Portal can request browser notification permission for web users; the packaged desktop app sends Windows toast notifications and includes a test button.
 
 ### Components (`src/components/`)
 

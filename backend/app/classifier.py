@@ -20,9 +20,10 @@ from typing import Optional
 
 from sqlmodel import Session
 
+from app.ai_prompt_defaults import SYSTEM_PROMPT_KEY, USER_PROMPT_KEY
 from app.config import GEMINI_BATCH_SIZE
 from app.db import engine
-from app.models import Job
+from app.models import AIPrompt, Job
 from app.secrets import get_secret
 
 logger = logging.getLogger(__name__)
@@ -40,42 +41,6 @@ _OBVIOUS_NON_TECH_PATTERNS = re.compile(
     r")\b",
     re.IGNORECASE,
 )
-
-# ── Prompt ───────────────────────────────────────────────────────────
-
-_SYSTEM_PROMPT = """You are a job relevance classifier for a personal tech job aggregator in Sri Lanka.
-
-Your task: decide whether each job posting is RELEVANT or IRRELEVANT to the software/IT industry.
-
-RELEVANT jobs (keep these: "keep": true):
-- Software Engineer / Developer (junior, senior, intern, trainee, associate, lead)
-- Web Developer (frontend, backend, full stack)
-- Mobile Developer (Android, iOS, Flutter, React Native)
-- QA / Test Engineer / Quality Assurance / Software Tester
-- DevOps / Cloud / Infrastructure / System Admin / Network / Cybersecurity
-- Data Engineer / Data Scientist / Data Analyst / AI / ML Engineer
-- Tech-focused Interns, IT Interns, Software Interns, Trainee Engineers
-- IT Project Managers, Business Analysts in Software/Tech, UI/UX Designers
-- Any software, coding, or IT industry technical role
-
-IRRELEVANT jobs (remove these: "keep": false):
-- Travel / Aviation: Air ticketing officers, visa processing officers, tour executives
-- Hospitality: Hotel staff, chefs, cooks, baristas, kitchen helpers, waiters
-- Healthcare: Doctors, nurses, pharmacists, lab technicians
-- Non-IT Sales & Marketing: Retail sales, showroom sales, direct sales (unless software/IT product sales)
-- General Admin, HR, Receptionists, Clerks, Cashiers, Drivers, Factory workers
-- Non-IT Engineering: Civil, mechanical, electrical (unless software/firmware/automation)
-- Any role clearly outside the software/IT industry
-
-Respond ONLY with a valid JSON array. Format: [{"id": <number>, "keep": <true|false>}, ...]
-"""
-
-_USER_PROMPT_TEMPLATE = """Classify these job postings. Return ONLY a JSON array.
-
-Jobs:
-{jobs_json}
-"""
-
 
 # ── Public API ───────────────────────────────────────────────────────
 
@@ -210,10 +175,19 @@ def _classify_batch_single_model(
         job_entries = [
             {"id": j.id, "title": j.job_title, "company": j.company_name} for j in jobs
         ]
-        prompt = _USER_PROMPT_TEMPLATE.format(
-            jobs_json=json.dumps(job_entries, ensure_ascii=False)
+        with Session(engine) as session:
+            system_prompt = session.get(AIPrompt, SYSTEM_PROMPT_KEY)
+            user_prompt = session.get(AIPrompt, USER_PROMPT_KEY)
+            if system_prompt is None or user_prompt is None:
+                raise RuntimeError(
+                    "AI prompts have not been initialized in the database"
+                )
+
+        prompt = user_prompt.prompt.replace(
+            "{jobs_json}",
+            json.dumps(job_entries, ensure_ascii=False),
         )
-        full_prompt = f"{_SYSTEM_PROMPT}\n\n{prompt}"
+        full_prompt = f"{system_prompt.prompt}\n\n{prompt}"
 
         for attempt in range(1, 3):
             try:

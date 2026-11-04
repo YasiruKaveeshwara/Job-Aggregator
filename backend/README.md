@@ -12,6 +12,7 @@ FastAPI-powered backend engine for the **Job Aggregator** application. It handle
 - **Split HTTP Timeouts**: Separate connect timeout (5s) for fast detection of unreachable hosts, and read timeout (15s) for slow-but-alive servers.
 - **Deduplication Engine**: Matches job titles and company names to eliminate duplicate listings across platforms.
 - **AI Relevance Classifier**: Uses Google Gemini 3.1 Flash Lite to automatically filter out non-software job postings based on target keywords.
+- **Editable AI Prompts**: System and user prompts are seeded into SQLite, editable at `/prompts`, and independently restorable to their original defaults.
 - **Dual Data Persistence**:
   - **Web Development Mode**: Database saved at `backend/jobs.db`.
   - **Packaged Desktop Mode**: Database automatically mapped to `%APPDATA%\JobAggregator\jobs.db`.
@@ -87,6 +88,9 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 | `GET`          | `/api/scrape/runs`             | Retrieve scrape audit log history                                |
 | `GET`          | `/api/sources`                 | List configured scrapers and toggle status                       |
 | `GET` / `POST` | `/api/settings`                | Retrieve or update Gemini API keys and settings                  |
+| `GET`          | `/api/prompts`                 | List prompts and their default text                              |
+| `PUT`          | `/api/prompts/{key}`           | Update one prompt                                                |
+| `POST`         | `/api/prompts/{key}/reset`     | Restore one prompt to its seeded default                         |
 | `GET` / `POST` | `/api/keywords`                | Manage role matching and negative exclude terms                  |
 | `GET` / `POST` | `/api/locations`               | Manage target geographic locations                               |
 

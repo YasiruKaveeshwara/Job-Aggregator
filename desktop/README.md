@@ -7,6 +7,7 @@ Native Windows desktop distribution for **Job Aggregator**. Embeds the FastAPI b
 ## Key Architecture & Features
 
 - **PyWebview Native Container**: Launches FastAPI on a dynamic free local port and renders the UI in a native Windows webview window.
+- **Windows Completion Notifications**: Sends a native Windows toast when job fetching and processing completes; use the Admin Portal test button to check notification delivery.
 - **Console Terminal Suppression**: `console=False` in `build.spec` prevents unwanted black command prompt windows from popping up when opening the app.
 - **Developer Mode Toggle**: Custom checkbox in installer GUI enables/disables DevTools inspector (F12) via a `debug_mode.flag` file.
 - **Persistent Data Storage**: SQLite database automatically initialized at `%APPDATA%\JobAggregator\jobs.db` (`C:\Users\<Username>\AppData\Roaming\JobAggregator\jobs.db`).

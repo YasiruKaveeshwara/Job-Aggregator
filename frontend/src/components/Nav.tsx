@@ -25,6 +25,16 @@ const NAV_LINKS = [
 			</svg>
 		),
 	},
+	{
+		href: "/prompts",
+		label: "AI Prompts",
+		icon: (
+			<svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+				<path d='M12 3v18M3 12h18' />
+				<path d='m5.64 5.64 12.72 12.72M18.36 5.64 5.64 18.36' />
+			</svg>
+		),
+	},
 ];
 
 export default function Nav() {
@@ -112,7 +122,7 @@ export default function Nav() {
 							border: "1px solid var(--border)",
 						}}>
 						{NAV_LINKS.map(({ href, label, icon }) => {
-							const active = path === href;
+							const active = path === href || path === `${href}/`;
 							return (
 								<Link
 									key={href}

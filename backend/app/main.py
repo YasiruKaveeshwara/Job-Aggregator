@@ -97,13 +97,14 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────
 
-from app.routers import jobs, keywords, scrape, settings, sources
+from app.routers import jobs, keywords, prompts, scrape, settings, sources
 
 app.include_router(jobs.router)
 app.include_router(scrape.router)
 app.include_router(sources.router)
 app.include_router(keywords.router)
 app.include_router(settings.router)
+app.include_router(prompts.router)
 
 
 # ── Health check ─────────────────────────────────────────────────────
