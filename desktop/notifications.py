@@ -8,9 +8,11 @@ logger = logging.getLogger(__name__)
 def show_windows_notification(title: str, message: str) -> None:
     """Display a native Windows notification through the Winotify package."""
     try:
-        from winotify import Notification
+        from winotify import Notification, audio
 
-        Notification(app_id="Job Aggregator", title=title, msg=message).show()
+        notification = Notification(app_id="Job Aggregator", title=title, msg=message)
+        notification.set_audio(audio.Default, loop=False)
+        notification.show()
     except Exception:
         logger.exception("Could not display Windows notification")
         raise
