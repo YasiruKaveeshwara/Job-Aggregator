@@ -50,7 +50,7 @@ export default function Footer() {
 							borderRadius: "12px",
 							border: "1px solid var(--cyan-border)",
 						}}>
-						v1.3.1
+						v1.3.2
 					</span>
 				</div>
 

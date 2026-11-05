@@ -134,7 +134,7 @@ def register_uninstaller(install_dir: str, exe_path: str):
                 winreg.REG_SZ,
                 "https://github.com/YasiruKaveeshwara/Job-Aggregator",
             )
-            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.3.1")
+            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.3.2")
             winreg.SetValueEx(key, "InstallLocation", 0, winreg.REG_SZ, install_dir)
             winreg.SetValueEx(key, "NoModify", 0, winreg.REG_DWORD, 1)
             winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 1)
